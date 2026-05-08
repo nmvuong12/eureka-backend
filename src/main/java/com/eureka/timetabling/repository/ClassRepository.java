@@ -45,6 +45,7 @@ public class ClassRepository {
         String sql = """
                 SELECT c.id, c.course_id, c.name, c.student_size, c.start_date, c.status, c.created_at, c.updated_at
                 FROM class c
+                WHERE c.is_deleted = 0
                 ORDER BY c.start_date DESC
                 """;
         return jdbc.query(sql, new MapSqlParameterSource(), classMapper);
@@ -53,7 +54,7 @@ public class ClassRepository {
     public Optional<SchoolClass> findById(Long id) {
         var list = jdbc.query("""
                 SELECT id, course_id, name, student_size, start_date, status, created_at, updated_at
-                FROM class WHERE id = :id
+                FROM class WHERE id = :id AND is_deleted = 0
                 """, new MapSqlParameterSource("id", id), classMapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
@@ -88,12 +89,6 @@ public class ClassRepository {
         jdbc.batchUpdate(sql, batchParams);
 
         // Tạo lesson_assignment rỗng cho mỗi lesson
-        String assignSql = """
-                INSERT INTO lesson_assignment (lesson_id, teacher_id, room_id, timeslot_id, is_pinned)
-                SELECT id, NULL, NULL, NULL, 0 FROM lesson
-                WHERE class_id = :classId AND teacher_id IS NOT NULL
-                """;
-        // Thay thế: insert trực tiếp sau khi lấy id
         String assignSql2 = """
                 INSERT INTO lesson_assignment (lesson_id, is_pinned)
                 SELECT l.id, 0 FROM lesson l WHERE l.class_id = :classId
@@ -111,7 +106,7 @@ public class ClassRepository {
                        COALESCE(la.is_pinned, 0) AS is_pinned
                 FROM lesson l
                 LEFT JOIN lesson_assignment la ON l.id = la.lesson_id
-                WHERE l.class_id = :classId
+                WHERE l.class_id = :classId AND l.is_deleted = 0
                 ORDER BY l.lesson_index
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("classId", classId), lessonMapper);
@@ -125,7 +120,7 @@ public class ClassRepository {
                 FROM lesson l
                 LEFT JOIN lesson_assignment la ON l.id = la.lesson_id
                 LEFT JOIN class c ON l.class_id = c.id
-                WHERE c.status IN ('PENDING','ACTIVE')
+                WHERE c.status IN ('PENDING','ACTIVE') AND c.is_deleted = 0 AND l.is_deleted = 0
                 """;
         return jdbc.query(sql, new MapSqlParameterSource(), lessonMapper);
     }
@@ -169,18 +164,6 @@ public class ClassRepository {
     }
 
     public int clearAssignmentsForTeacherInDateRange(Long teacherId, java.time.LocalDate from, java.time.LocalDate to) {
-        String sql = """
-                UPDATE lesson_assignment la
-                INNER JOIN timeslot ts ON la.timeslot_id = ts.id
-                SET la.teacher_id = NULL, la.updated_at = NOW()
-                WHERE la.teacher_id = :teacherId
-                  AND CASE ts.day_of_week
-                      WHEN 'MONDAY'    THEN 1 WHEN 'TUESDAY'   THEN 2 WHEN 'WEDNESDAY' THEN 3
-                      WHEN 'THURSDAY'  THEN 4 WHEN 'FRIDAY'    THEN 5 WHEN 'SATURDAY'  THEN 6
-                      WHEN 'SUNDAY'    THEN 7 END
-                  BETWEEN DAYOFWEEK(:fromDate) AND DAYOFWEEK(:toDate)
-                """;
-        // Cách đơn giản hơn: xoá tất cả trong khoảng ngày dựa trên lesson_assignment
         String simpleSql = """
                 UPDATE lesson_assignment SET teacher_id = NULL, updated_at = NOW()
                 WHERE teacher_id = :teacherId AND is_pinned = 0
@@ -195,8 +178,15 @@ public class ClassRepository {
                        COALESCE(la.is_pinned, 0) AS is_pinned
                 FROM lesson l
                 INNER JOIN lesson_assignment la ON l.id = la.lesson_id AND la.teacher_id = :teacherId
+                LEFT JOIN class c ON l.class_id = c.id
+                WHERE c.is_deleted = 0 AND l.is_deleted = 0
                 ORDER BY la.timeslot_id, l.class_id, l.lesson_index
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("teacherId", teacherId), lessonMapper);
+    }
+
+    public void deleteClass(Long id) {
+        jdbc.update("UPDATE class SET is_deleted = 1 WHERE id = :id", new MapSqlParameterSource("id", id));
+        jdbc.update("UPDATE lesson SET is_deleted = 1 WHERE class_id = :id", new MapSqlParameterSource("id", id));
     }
 }

@@ -9,7 +9,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,11 +33,82 @@ public class TeacherRepository {
                     ? rs.getTimestamp("updated_at").toLocalDateTime() : null)
             .build();
 
+    public List<Teacher> search(String name, String contact, String skill, String status, int page, int size) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT DISTINCT t.id, t.name, t.email, t.phone, t.status, t.created_at, t.updated_at
+                FROM teacher t
+                """);
+        
+        if (skill != null && !skill.isBlank()) {
+            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id ");
+        }
+        
+        sql.append(" WHERE t.is_deleted = 0 ");
+        MapSqlParameterSource params = new MapSqlParameterSource();
+
+        if (name != null && !name.isBlank()) {
+            sql.append(" AND LOWER(t.name) LIKE LOWER(:name) ");
+            params.addValue("name", "%" + name.trim() + "%");
+        }
+        if (contact != null && !contact.isBlank()) {
+            sql.append(" AND (LOWER(t.email) LIKE LOWER(:contact) OR t.phone LIKE :contact) ");
+            params.addValue("contact", "%" + contact.trim() + "%");
+        }
+        if (skill != null && !skill.isBlank()) {
+            sql.append(" AND LOWER(ts.skill_code) LIKE LOWER(:skill) ");
+            params.addValue("skill", "%" + skill.trim() + "%");
+        }
+        if (status != null && !status.isBlank()) {
+            sql.append(" AND t.status = :status ");
+            params.addValue("status", status);
+        }
+
+        sql.append(" ORDER BY t.name LIMIT :limit OFFSET :offset");
+        params.addValue("limit", size);
+        params.addValue("offset", (page - 1) * size);
+
+        return jdbc.query(sql.toString(), params, teacherMapper);
+    }
+
+    public long countSearch(String name, String contact, String skill, String status) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT count(DISTINCT t.id)
+                FROM teacher t
+                """);
+        
+        if (skill != null && !skill.isBlank()) {
+            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id ");
+        }
+        
+        sql.append(" WHERE t.is_deleted = 0 ");
+        MapSqlParameterSource params = new MapSqlParameterSource();
+
+        if (name != null && !name.isBlank()) {
+            sql.append(" AND LOWER(t.name) LIKE LOWER(:name) ");
+            params.addValue("name", "%" + name.trim() + "%");
+        }
+        if (contact != null && !contact.isBlank()) {
+            sql.append(" AND (LOWER(t.email) LIKE LOWER(:contact) OR t.phone LIKE :contact) ");
+            params.addValue("contact", "%" + contact.trim() + "%");
+        }
+        if (skill != null && !skill.isBlank()) {
+            sql.append(" AND LOWER(ts.skill_code) LIKE LOWER(:skill) ");
+            params.addValue("skill", "%" + skill.trim() + "%");
+        }
+        if (status != null && !status.isBlank()) {
+            sql.append(" AND t.status = :status ");
+            params.addValue("status", status);
+        }
+
+        Long count = jdbc.queryForObject(sql.toString(), params, Long.class);
+        return count != null ? count : 0L;
+    }
+
     public List<Teacher> findAll(String status) {
         String sql = """
                 SELECT id, name, email, phone, status, created_at, updated_at
                 FROM teacher
-                WHERE (:status IS NULL OR status = :status)
+                WHERE is_deleted = 0 AND (:status IS NULL OR status = :status)
                 ORDER BY name
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("status", status), teacherMapper);
@@ -48,7 +118,7 @@ public class TeacherRepository {
         String sql = """
                 SELECT id, name, email, phone, status, created_at, updated_at
                 FROM teacher
-                WHERE id = :id
+                WHERE id = :id AND is_deleted = 0
                 """;
         var list = jdbc.query(sql, new MapSqlParameterSource("id", id), teacherMapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
@@ -73,7 +143,7 @@ public class TeacherRepository {
         String sql = """
                 UPDATE teacher
                 SET name = :name, email = :email, phone = :phone, status = :status, updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND is_deleted = 0
                 """;
         var params = new MapSqlParameterSource()
                 .addValue("id", teacher.getId())
@@ -85,24 +155,23 @@ public class TeacherRepository {
     }
 
     public int deleteById(Long id) {
-        return jdbc.update("DELETE FROM teacher WHERE id = :id",
+        return jdbc.update("UPDATE teacher SET is_deleted = 1 WHERE id = :id",
                 new MapSqlParameterSource("id", id));
     }
 
     public boolean existsByEmail(String email) {
-        String sql = "SELECT COUNT(*) FROM teacher WHERE email = :email";
+        String sql = "SELECT COUNT(*) FROM teacher WHERE email = :email AND is_deleted = 0";
         Integer count = jdbc.queryForObject(sql, new MapSqlParameterSource("email", email), Integer.class);
         return count != null && count > 0;
     }
 
     public boolean existsByEmailAndIdNot(String email, Long id) {
-        String sql = "SELECT COUNT(*) FROM teacher WHERE email = :email AND id != :id";
+        String sql = "SELECT COUNT(*) FROM teacher WHERE email = :email AND id != :id AND is_deleted = 0";
         Integer count = jdbc.queryForObject(sql,
                 new MapSqlParameterSource("email", email).addValue("id", id), Integer.class);
         return count != null && count > 0;
     }
 
-    // Truy vấn kỹ năng
     public List<String> findSkillsByTeacherId(Long teacherId) {
         String sql = "SELECT skill_code FROM teacher_skill WHERE teacher_id = :teacherId ORDER BY skill_code";
         return jdbc.queryForList(sql, new MapSqlParameterSource("teacherId", teacherId), String.class);
@@ -120,21 +189,18 @@ public class TeacherRepository {
         }
     }
 
-    // Truy vấn tập hợp kỹ năng cho Timefold
     public List<Timetable.TeacherSkillFact> findAllSkillFacts() {
         String sql = "SELECT teacher_id, skill_code FROM teacher_skill";
         return jdbc.query(sql, (rs, row) ->
                 new Timetable.TeacherSkillFact(rs.getLong("teacher_id"), rs.getString("skill_code")));
     }
 
-    // Tìm ID tất cả giáo viên đang hoạt động
     public List<Long> findAllActiveIds() {
         return jdbc.queryForList(
-                "SELECT id FROM teacher WHERE status = 'ACTIVE'",
+                "SELECT id FROM teacher WHERE status = 'ACTIVE' AND is_deleted = 0",
                 new MapSqlParameterSource(), Long.class);
     }
 
-    // Tìm giáo viên thay thế phù hợp kỹ năng và không bận ca đó
     public List<Teacher> findSuitableSubstitutes(String skillCode, Long timeslotId, Long excludeTeacherId) {
         String sql = """
                 SELECT DISTINCT t.id, t.name, t.email, t.phone, t.status, t.created_at, t.updated_at
@@ -142,7 +208,7 @@ public class TeacherRepository {
                 INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode
                 LEFT JOIN teacher_unavailable tu ON t.id = tu.teacher_id AND tu.timeslot_id = :timeslotId
                 LEFT JOIN lesson_assignment la ON t.id = la.teacher_id AND la.timeslot_id = :timeslotId
-                WHERE t.status = 'ACTIVE'
+                WHERE t.status = 'ACTIVE' AND t.is_deleted = 0
                   AND t.id != :excludeTeacherId
                   AND tu.id IS NULL
                   AND la.id IS NULL

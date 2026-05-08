@@ -26,9 +26,16 @@ public class AccountController {
     private final AccountService accountService;
 
     @GetMapping
-    @Operation(summary = "Danh sách tài khoản")
-    public ResponseEntity<ApiResponse<List<UserRepository.UserRecord>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(accountService.findAll()));
+    @Operation(summary = "Danh sách tài khoản (có phân trang)")
+    public ResponseEntity<ApiResponse<com.eureka.timetabling.dto.response.PageResponse<UserRepository.UserRecord>>> getAccounts(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String fullName,
+            @RequestParam(required = false) String email,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "15") int size) {
+        return ResponseEntity.ok(ApiResponse.success(accountService.search(username, role, isActive, fullName, email, page, size)));
     }
 
     @PostMapping

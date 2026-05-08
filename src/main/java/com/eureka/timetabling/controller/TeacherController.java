@@ -31,10 +31,15 @@ public class TeacherController {
     private final TimetableService timetableService;
 
     @GetMapping
-    @Operation(summary = "Danh sách giáo viên", description = "Lấy toàn bộ danh sách giáo viên, có thể lọc theo trạng thái")
-    public ResponseEntity<ApiResponse<List<TeacherResponse>>> getAll(
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(ApiResponse.success(teacherService.findAll(status)));
+    @Operation(summary = "Danh sách giáo viên", description = "Lấy toàn bộ danh sách giáo viên, có phân trang và tìm kiếm")
+    public ResponseEntity<ApiResponse<com.eureka.timetabling.dto.response.PageResponse<TeacherResponse>>> getAll(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String contact,
+            @RequestParam(required = false) String skill,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "15") int size) {
+        return ResponseEntity.ok(ApiResponse.success(teacherService.search(name, contact, skill, status, page, size)));
     }
 
     @GetMapping("/{id}")

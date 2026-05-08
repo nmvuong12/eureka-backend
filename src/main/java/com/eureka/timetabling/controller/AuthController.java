@@ -12,8 +12,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import com.eureka.timetabling.dto.request.ChangePasswordRequest;
+
 /**
- * API xác thực người dùng
+ * API xác thực và quản lý tài khoản người dùng
  */
 @RestController
 @RequestMapping("/auth")
@@ -34,5 +36,12 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Object>> me(Authentication auth) {
         var user = authService.getCurrentUser(auth.getName());
         return ResponseEntity.ok(ApiResponse.success(user));
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Đổi mật khẩu", description = "Đổi mật khẩu cho người dùng hiện tại")
+    public ResponseEntity<ApiResponse<Void>> changePassword(Authentication auth, @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(auth.getName(), request);
+        return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công", null));
     }
 }

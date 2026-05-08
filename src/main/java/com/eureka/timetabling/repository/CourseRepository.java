@@ -30,13 +30,13 @@ public class CourseRepository {
 
     public List<Course> findAll() {
         return jdbc.query(
-                "SELECT id, name, total_lessons, default_duration, description, created_at, updated_at FROM course ORDER BY name",
+                "SELECT id, name, total_lessons, default_duration, description, created_at, updated_at FROM course WHERE is_deleted = 0 ORDER BY name",
                 new MapSqlParameterSource(), courseMapper);
     }
 
     public Optional<Course> findById(Long id) {
         var list = jdbc.query(
-                "SELECT id, name, total_lessons, default_duration, description, created_at, updated_at FROM course WHERE id = :id",
+                "SELECT id, name, total_lessons, default_duration, description, created_at, updated_at FROM course WHERE id = :id AND is_deleted = 0",
                 new MapSqlParameterSource("id", id), courseMapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
@@ -64,6 +64,6 @@ public class CourseRepository {
     }
 
     public int deleteById(Long id) {
-        return jdbc.update("DELETE FROM course WHERE id = :id", new MapSqlParameterSource("id", id));
+        return jdbc.update("UPDATE course SET is_deleted = 1 WHERE id = :id", new MapSqlParameterSource("id", id));
     }
 }

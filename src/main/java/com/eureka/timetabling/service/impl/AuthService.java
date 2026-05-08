@@ -1,5 +1,6 @@
 package com.eureka.timetabling.service.impl;
 
+import com.eureka.timetabling.dto.request.ChangePasswordRequest;
 import com.eureka.timetabling.dto.request.LoginRequest;
 import com.eureka.timetabling.dto.response.LoginResponse;
 import com.eureka.timetabling.exception.BusinessException;
@@ -43,5 +44,16 @@ public class AuthService {
     public UserRepository.UserRecord getCurrentUser(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException("Người dùng không tồn tại"));
+    }
+
+    public void changePassword(String username, ChangePasswordRequest request) {
+        var user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BusinessException("Người dùng không tồn tại"));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.passwordHash())) {
+            throw new BusinessException("Mật khẩu cũ không chính xác");
+        }
+
+        userRepository.updatePassword(user.id(), passwordEncoder.encode(request.getNewPassword()));
     }
 }

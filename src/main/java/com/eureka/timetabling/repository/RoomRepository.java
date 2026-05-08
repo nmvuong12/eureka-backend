@@ -30,13 +30,13 @@ public class RoomRepository {
 
     public List<Room> findAll() {
         return jdbc.query(
-                "SELECT id, name, capacity, status, created_at, updated_at FROM room ORDER BY name",
+                "SELECT id, name, capacity, status, created_at, updated_at FROM room WHERE is_deleted = 0 ORDER BY name",
                 new MapSqlParameterSource(), roomMapper);
     }
 
     public Optional<Room> findById(Long id) {
         var list = jdbc.query(
-                "SELECT id, name, capacity, status, created_at, updated_at FROM room WHERE id = :id",
+                "SELECT id, name, capacity, status, created_at, updated_at FROM room WHERE id = :id AND is_deleted = 0",
                 new MapSqlParameterSource("id", id), roomMapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
@@ -62,16 +62,16 @@ public class RoomRepository {
     }
 
     public int deleteById(Long id) {
-        return jdbc.update("DELETE FROM room WHERE id = :id", new MapSqlParameterSource("id", id));
+        return jdbc.update("UPDATE room SET is_deleted = 1 WHERE id = :id", new MapSqlParameterSource("id", id));
     }
 
     public List<Long> findAllActiveIds() {
-        return jdbc.queryForList("SELECT id FROM room WHERE status = 'ACTIVE'",
+        return jdbc.queryForList("SELECT id FROM room WHERE status = 'ACTIVE' AND is_deleted = 0",
                 new MapSqlParameterSource(), Long.class);
     }
 
     public List<Timetable.RoomFact> findAllRoomFacts() {
-        String sql = "SELECT id, capacity, status FROM room";
+        String sql = "SELECT id, capacity, status FROM room WHERE is_deleted = 0";
         return jdbc.query(sql, (rs, row) ->
                 new Timetable.RoomFact(rs.getLong("id"), rs.getInt("capacity"), rs.getString("status")));
     }

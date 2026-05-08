@@ -30,6 +30,7 @@ public class TimeslotRepository {
     public List<Timeslot> findAll() {
         String sql = """
                 SELECT id, day_of_week, start_time, end_time, label FROM timeslot
+                WHERE is_deleted = 0
                 ORDER BY FIELD(day_of_week,'MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'), start_time
                 """;
         return jdbc.query(sql, new MapSqlParameterSource(), timeslotMapper);
@@ -37,7 +38,7 @@ public class TimeslotRepository {
 
     public Optional<Timeslot> findById(Long id) {
         var list = jdbc.query(
-                "SELECT id, day_of_week, start_time, end_time, label FROM timeslot WHERE id = :id",
+                "SELECT id, day_of_week, start_time, end_time, label FROM timeslot WHERE id = :id AND is_deleted = 0",
                 new MapSqlParameterSource("id", id), timeslotMapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
@@ -55,16 +56,16 @@ public class TimeslotRepository {
     }
 
     public int deleteById(Long id) {
-        return jdbc.update("DELETE FROM timeslot WHERE id = :id", new MapSqlParameterSource("id", id));
+        return jdbc.update("UPDATE timeslot SET is_deleted = 1 WHERE id = :id", new MapSqlParameterSource("id", id));
     }
 
     public List<Long> findAllIds() {
-        return jdbc.queryForList("SELECT id FROM timeslot ORDER BY id",
+        return jdbc.queryForList("SELECT id FROM timeslot WHERE is_deleted = 0 ORDER BY id",
                 new MapSqlParameterSource(), Long.class);
     }
 
     public List<Timetable.TimeslotFact> findAllTimeslotFacts() {
-        String sql = "SELECT id, day_of_week, start_time, end_time FROM timeslot";
+        String sql = "SELECT id, day_of_week, start_time, end_time FROM timeslot WHERE is_deleted = 0";
         return jdbc.query(sql, (rs, row) ->
                 new Timetable.TimeslotFact(
                         rs.getLong("id"),

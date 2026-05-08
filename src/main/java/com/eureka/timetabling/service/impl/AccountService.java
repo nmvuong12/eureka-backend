@@ -16,8 +16,10 @@ public class AccountService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public List<UserRepository.UserRecord> findAll() {
-        return userRepository.findAll();
+    public com.eureka.timetabling.dto.response.PageResponse<UserRepository.UserRecord> search(String username, String role, Boolean isActive, String fullName, String email, int page, int size) {
+        List<UserRepository.UserRecord> data = userRepository.search(username, role, isActive, fullName, email, page, size);
+        long total = userRepository.countSearch(username, role, isActive, fullName, email);
+        return com.eureka.timetabling.dto.response.PageResponse.of(data, page, size, total);
     }
 
     public void create(AccountRequest request) {
@@ -30,7 +32,9 @@ public class AccountService {
             }
         }
         String hash = passwordEncoder.encode(request.getPassword());
-        userRepository.save(request.getUsername(), hash, request.getRole(), request.getTeacherId());
+        userRepository.save(request.getUsername(), hash, request.getRole(), request.getTeacherId(),
+                request.getFullName(), request.getGender(), request.getDob(),
+                request.getAddress(), request.getPhone(), request.getEmail());
     }
 
     public void update(Long id, AccountRequest request) {
@@ -41,7 +45,9 @@ public class AccountService {
                 }
             });
         }
-        userRepository.update(id, request.getRole(), request.isActive(), request.getTeacherId());
+        userRepository.update(id, request.getRole(), request.isActive(), request.getTeacherId(),
+                request.getFullName(), request.getGender(), request.getDob(),
+                request.getAddress(), request.getPhone(), request.getEmail());
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             userRepository.updatePassword(id, passwordEncoder.encode(request.getPassword()));
         }

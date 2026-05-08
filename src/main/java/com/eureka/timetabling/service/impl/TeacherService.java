@@ -31,6 +31,15 @@ public class TeacherService {
     }
 
     @Transactional(readOnly = true)
+    public com.eureka.timetabling.dto.response.PageResponse<TeacherResponse> search(String name, String contact, String skill, String status, int page, int size) {
+        List<TeacherResponse> data = teacherRepository.search(name, contact, skill, status, page, size).stream()
+                .map(this::toResponse)
+                .toList();
+        long total = teacherRepository.countSearch(name, contact, skill, status);
+        return com.eureka.timetabling.dto.response.PageResponse.of(data, page, size, total);
+    }
+
+    @Transactional(readOnly = true)
     public TeacherResponse findById(Long id) {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Giáo viên", id));

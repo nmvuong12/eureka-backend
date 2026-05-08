@@ -36,7 +36,7 @@ public class LeaveRequestRepository {
                 SELECT id, teacher_id, from_date, to_date, reason, status,
                        reviewed_by, reviewed_at, created_at, updated_at
                 FROM leave_request
-                WHERE (:status IS NULL OR status = :status)
+                WHERE is_deleted = 0 AND (:status IS NULL OR status = :status)
                 ORDER BY created_at DESC
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("status", status), mapper);
@@ -46,7 +46,7 @@ public class LeaveRequestRepository {
         String sql = """
                 SELECT id, teacher_id, from_date, to_date, reason, status,
                        reviewed_by, reviewed_at, created_at, updated_at
-                FROM leave_request WHERE teacher_id = :teacherId ORDER BY created_at DESC
+                FROM leave_request WHERE teacher_id = :teacherId AND is_deleted = 0 ORDER BY created_at DESC
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("teacherId", teacherId), mapper);
     }
@@ -55,7 +55,7 @@ public class LeaveRequestRepository {
         var list = jdbc.query("""
                 SELECT id, teacher_id, from_date, to_date, reason, status,
                        reviewed_by, reviewed_at, created_at, updated_at
-                FROM leave_request WHERE id = :id
+                FROM leave_request WHERE id = :id AND is_deleted = 0
                 """, new MapSqlParameterSource("id", id), mapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
@@ -79,11 +79,15 @@ public class LeaveRequestRepository {
         String sql = """
                 UPDATE leave_request
                 SET status = :status, reviewed_by = :reviewedBy, reviewed_at = NOW(), updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND is_deleted = 0
                 """;
         return jdbc.update(sql, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("status", status)
                 .addValue("reviewedBy", reviewedBy));
+    }
+
+    public int deleteById(Long id) {
+        return jdbc.update("UPDATE leave_request SET is_deleted = 1 WHERE id = :id", new MapSqlParameterSource("id", id));
     }
 }

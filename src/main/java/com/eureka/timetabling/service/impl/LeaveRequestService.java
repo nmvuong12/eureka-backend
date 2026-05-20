@@ -77,7 +77,7 @@ public class LeaveRequestService {
 
         // Gửi thông báo email
         teacherRepository.findById(lr.getTeacherId()).ifPresent(teacher ->
-                notificationService.sendLeaveApprovedNotification(teacher.getEmail(), teacher.getName(), lr));
+                notificationService.sendLeaveApprovedNotification(teacher.getEmail(), teacher.getFullName(), lr));
 
         return lr;
     }
@@ -95,7 +95,7 @@ public class LeaveRequestService {
         lr.setStatus("REJECTED");
 
         teacherRepository.findById(lr.getTeacherId()).ifPresent(teacher ->
-                notificationService.sendLeaveRejectedNotification(teacher.getEmail(), teacher.getName(), lr));
+                notificationService.sendLeaveRejectedNotification(teacher.getEmail(), teacher.getFullName(), lr));
 
         return lr;
     }

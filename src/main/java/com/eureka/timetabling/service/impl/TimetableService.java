@@ -90,7 +90,7 @@ public class TimetableService {
     public List<TimetableEntryResponse> getTimetable(Long teacherId, Long classId, Long roomId) {
         String sql = """
                 SELECT l.id AS lesson_id, l.class_id, c.name AS class_name, l.lesson_index, l.required_skill,
-                       la.teacher_id, t.name AS teacher_name,
+                       la.teacher_id, t.full_name AS teacher_name,
                        la.room_id, r.name AS room_name,
                        la.timeslot_id, ts.day_of_week, ts.start_time, ts.end_time, ts.label AS timeslot_label,
                        COALESCE(la.is_pinned, 0) AS pinned

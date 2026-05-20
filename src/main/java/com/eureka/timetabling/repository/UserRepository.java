@@ -24,7 +24,7 @@ public class UserRepository {
     public Optional<UserRecord> findByUsername(String username) {
         String sql = """
                 SELECT ua.id, ua.username, ua.password_hash, ua.role, ua.teacher_id, ua.is_active,
-                       COALESCE(t.name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
+                       COALESCE(t.full_name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
                        COALESCE(t.email, ua.email) as email
                 FROM user_account ua
                 LEFT JOIN teacher t ON ua.teacher_id = t.id
@@ -50,7 +50,7 @@ public class UserRepository {
     public Optional<UserRecord> findById(Long id) {
         String sql = """
                 SELECT ua.id, ua.username, ua.password_hash, ua.role, ua.teacher_id, ua.is_active,
-                       COALESCE(t.name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
+                       COALESCE(t.full_name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
                        COALESCE(t.email, ua.email) as email
                 FROM user_account ua
                 LEFT JOIN teacher t ON ua.teacher_id = t.id
@@ -98,7 +98,7 @@ public class UserRepository {
     public Optional<UserRecord> findByTeacherId(Long teacherId) {
         String sql = """
                 SELECT ua.id, ua.username, ua.password_hash, ua.role, ua.teacher_id, ua.is_active,
-                       COALESCE(t.name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
+                       COALESCE(t.full_name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
                        COALESCE(t.email, ua.email) as email
                 FROM user_account ua
                 LEFT JOIN teacher t ON ua.teacher_id = t.id
@@ -124,7 +124,7 @@ public class UserRepository {
     public java.util.List<UserRecord> search(String username, String role, Boolean isActive, String fullName, String email, int page, int size) {
         StringBuilder sql = new StringBuilder("""
                 SELECT ua.id, ua.username, ua.password_hash, ua.role, ua.teacher_id, ua.is_active,
-                       COALESCE(t.name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
+                       COALESCE(t.full_name, ua.full_name) as full_name, ua.gender, ua.dob, ua.address, ua.phone,
                        COALESCE(t.email, ua.email) as email
                 FROM user_account ua
                 LEFT JOIN teacher t ON ua.teacher_id = t.id
@@ -145,7 +145,7 @@ public class UserRepository {
             params.addValue("isActive", isActive);
         }
         if (fullName != null && !fullName.isBlank()) {
-            sql.append(" AND (LOWER(ua.full_name) LIKE LOWER(:fullName) OR LOWER(t.name) LIKE LOWER(:fullName)) ");
+            sql.append(" AND (LOWER(ua.full_name) LIKE LOWER(:fullName) OR LOWER(t.full_name) LIKE LOWER(:fullName)) ");
             params.addValue("fullName", "%" + fullName.trim() + "%");
         }
         if (email != null && !email.isBlank()) {
@@ -193,7 +193,7 @@ public class UserRepository {
             params.addValue("isActive", isActive);
         }
         if (fullName != null && !fullName.isBlank()) {
-            sql.append(" AND (LOWER(ua.full_name) LIKE LOWER(:fullName) OR LOWER(t.name) LIKE LOWER(:fullName)) ");
+            sql.append(" AND (LOWER(ua.full_name) LIKE LOWER(:fullName) OR LOWER(t.full_name) LIKE LOWER(:fullName)) ");
             params.addValue("fullName", "%" + fullName.trim() + "%");
         }
         if (email != null && !email.isBlank()) {

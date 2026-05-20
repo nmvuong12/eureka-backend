@@ -1,10 +1,12 @@
 package com.eureka.timetabling.controller;
 
 import com.eureka.timetabling.dto.request.TeacherRequest;
+import com.eureka.timetabling.dto.request.TeacherAvailabilityRequest;
 import com.eureka.timetabling.dto.response.ApiResponse;
+import com.eureka.timetabling.dto.response.PageResponse;
 import com.eureka.timetabling.dto.response.TimetableEntryResponse;
 import com.eureka.timetabling.dto.response.TeacherResponse;
-import com.eureka.timetabling.service.impl.TeacherService;
+import com.eureka.timetabling.service.TeacherService;
 import com.eureka.timetabling.service.impl.TimetableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -13,65 +15,160 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * API quản lý giáo viên
+ * Controller xử lý các API quản lý thông tin Giáo viên và Lịch rảnh.
+ * Hỗ trợ Swagger UI, kiểm tra tính hợp lệ dữ liệu và bảo mật phân quyền đầu cuối.
  */
 @RestController
 @RequestMapping("/teachers")
 @RequiredArgsConstructor
-@Tag(name = "Giáo viên", description = "Quản lý thông tin giáo viên")
+@Tag(name = "Giáo viên", description = "API Quản lý thông tin và lịch biểu của giáo viên")
 @SecurityRequirement(name = "bearerAuth")
 public class TeacherController {
 
     private final TeacherService teacherService;
     private final TimetableService timetableService;
 
+    /**
+     * API Tìm kiếm giáo viên nâng cao (Hỗ trợ phân trang, sắp xếp và query động)
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
     @GetMapping
-    @Operation(summary = "Danh sách giáo viên", description = "Lấy toàn bộ danh sách giáo viên, có phân trang và tìm kiếm")
-    public ResponseEntity<ApiResponse<com.eureka.timetabling.dto.response.PageResponse<TeacherResponse>>> getAll(
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String contact,
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Tìm kiếm & Phân trang giáo viên", 
+               description = "Lấy danh sách giáo viên dựa trên các bộ lọc tùy chọn với hỗ trợ phân trang và sắp xếp động.")
+    public ResponseEntity<ApiResponse<PageResponse<TeacherResponse>>> search(
+            @RequestParam(required = false) String teacherCode,
+            @RequestParam(required = false) String fullName,
             @RequestParam(required = false) String skill,
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String teacherType,
+            @RequestParam(required = false) String workingStatus,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "15") int size) {
-        return ResponseEntity.ok(ApiResponse.success(teacherService.search(name, contact, skill, status, page, size)));
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(defaultValue = "teacher_code") String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDir) {
+        
+        PageResponse<TeacherResponse> response = teacherService.search(
+                teacherCode, fullName, skill, teacherType, workingStatus, page, size, sortBy, sortDir);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    /**
+     * API Lấy toàn bộ danh sách giáo viên không phân trang
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Lấy toàn bộ danh sách giáo viên không phân trang", 
+               description = "Trả về mảng danh sách toàn bộ giáo viên chưa xóa để hiển thị lên các ô chọn (Select Dropdowns).")
+    public ResponseEntity<ApiResponse<List<TeacherResponse>>> getAll(@RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(teacherService.findAll(status)));
+    }
+
+    /**
+     * API Lấy chi tiết thông tin giáo viên theo ID
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
     @GetMapping("/{id}")
-    @Operation(summary = "Chi tiết giáo viên")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Xem chi tiết giáo viên")
     public ResponseEntity<ApiResponse<TeacherResponse>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(teacherService.findById(id)));
     }
 
+    /**
+     * API Thêm mới một giáo viên
+     * Quyền hạn: ADMIN, STAFF
+     */
     @PostMapping
-    @Operation(summary = "Tạo giáo viên mới")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "Thêm giáo viên mới", 
+               description = "Cho phép quản trị viên hoặc giáo vụ tạo mới giáo viên. Mã giáo viên được tự động sinh dạng GVxxxx.")
     public ResponseEntity<ApiResponse<TeacherResponse>> create(@Valid @RequestBody TeacherRequest request) {
+        TeacherResponse response = teacherService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Tạo giáo viên thành công", teacherService.create(request)));
+                .body(ApiResponse.success("Thêm mới giáo viên thành công", response));
     }
 
+    /**
+     * API Cập nhật thông tin giáo viên theo ID
+     * Quyền hạn: ADMIN, STAFF
+     */
     @PutMapping("/{id}")
-    @Operation(summary = "Cập nhật giáo viên")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @Operation(summary = "Cập nhật thông tin giáo viên")
     public ResponseEntity<ApiResponse<TeacherResponse>> update(
-            @PathVariable Long id, @Valid @RequestBody TeacherRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật giáo viên thành công", teacherService.update(id, request)));
+            @PathVariable Long id, 
+            @Valid @RequestBody TeacherRequest request) {
+        TeacherResponse response = teacherService.update(id, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin giáo viên thành công", response));
     }
 
+    /**
+     * API Xóa giáo viên (Xóa mềm - Soft Delete)
+     * Quyền hạn: ADMIN
+     */
     @DeleteMapping("/{id}")
-    @Operation(summary = "Xóa giáo viên")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Xóa giáo viên (Xóa mềm)", 
+               description = "Thực hiện xóa mềm giáo viên bằng cách đổi cờ is_deleted = 1. Từ chối xóa nếu giáo viên đang có lịch dạy.")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         teacherService.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa giáo viên thành công", null));
     }
 
+    /**
+     * API Đăng ký lịch rảnh cho giáo viên bán thời gian (PART_TIME)
+     * Quyền hạn: TEACHER
+     */
+    @PostMapping("/availability")
+    @PreAuthorize("hasRole('TEACHER')")
+    @Operation(summary = "Đăng ký lịch rảnh (Chỉ giáo viên bán thời gian)", 
+               description = "Chỉ giáo viên PART_TIME mới được đăng ký. Bắt buộc startTime < endTime và không bị trùng lặp khoảng thời gian rảnh đã có.")
+    public ResponseEntity<ApiResponse<Void>> registerAvailability(
+            @Valid @RequestBody TeacherAvailabilityRequest request) {
+        teacherService.registerAvailability(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Đăng ký lịch rảnh giảng dạy thành công", null));
+    }
+
+    /**
+     * API Lấy danh sách lịch rảnh đã đăng ký của giáo viên
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
+    @GetMapping("/{id}/availability")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Xem danh sách lịch rảnh của giáo viên")
+    public ResponseEntity<ApiResponse<List<com.eureka.timetabling.domain.TeacherAvailability>>> getAvailabilities(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(teacherService.getAvailabilities(id)));
+    }
+
+    /**
+     * API Xóa lịch rảnh giảng dạy của giáo viên
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
+    @DeleteMapping("/availability/{availabilityId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Xóa một ca lịch rảnh của giáo viên")
+    public ResponseEntity<ApiResponse<Void>> deleteAvailability(@PathVariable Long availabilityId) {
+        teacherService.deleteAvailability(availabilityId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa ca lịch rảnh thành công", null));
+    }
+
+    /**
+     * API Lấy lịch giảng dạy được phân công của giáo viên
+     * Quyền hạn: ADMIN, STAFF, TEACHER
+     */
     @GetMapping("/{id}/schedule")
-    @Operation(summary = "Lịch dạy của giáo viên", description = "Lấy tất cả buổi học được phân công cho giáo viên")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    @Operation(summary = "Xem lịch dạy của giáo viên")
     public ResponseEntity<ApiResponse<List<TimetableEntryResponse>>> getSchedule(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(timetableService.getTimetable(id, null, null)));
+        List<TimetableEntryResponse> schedule = timetableService.getTimetable(id, null, null);
+        return ResponseEntity.ok(ApiResponse.success(schedule));
     }
 }

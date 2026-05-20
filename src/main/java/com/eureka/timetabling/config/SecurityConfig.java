@@ -47,10 +47,15 @@ public class SecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Teacher endpoints
+                .requestMatchers("/teachers/availability/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
                 .requestMatchers(HttpMethod.GET, "/teachers/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
                 .requestMatchers("/teachers/**").hasAnyRole("ADMIN", "STAFF")
+                // File endpoints
+                .requestMatchers("/files/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
                 // Admin only
                 .requestMatchers("/users/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/skills", "/skills/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
+                .requestMatchers("/skills", "/skills/**").hasAnyRole("ADMIN", "STAFF")
                 .requestMatchers(HttpMethod.DELETE, "/**").hasRole("ADMIN")
                 // All other authenticated
                 .anyRequest().authenticated()

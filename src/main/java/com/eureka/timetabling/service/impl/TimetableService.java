@@ -31,6 +31,7 @@ public class TimetableService {
     private final TeacherRepository teacherRepository;
     private final RoomRepository roomRepository;
     private final TimeslotRepository timeslotRepository;
+    private final SchedulePatternRepository schedulePatternRepository;
     private final NamedParameterJdbcTemplate jdbc;
 
     // Trạng thái giải - dùng cho API polling
@@ -76,9 +77,10 @@ public class TimetableService {
         List<Timetable.TimeslotFact> timeslotFacts = timeslotRepository.findAllTimeslotFacts();
         List<Timetable.TeacherUnavailableFact> unavailableFacts = timeslotRepository.findAllTeacherUnavailableFacts();
         List<Timetable.TeacherSkillFact> skillFacts = teacherRepository.findAllSkillFacts();
+        List<com.eureka.timetabling.domain.SchedulePattern> schedulePatterns = schedulePatternRepository.findAllActive();
 
         return new Timetable("EurekaSchedule", teacherIds, roomIds, timeslotIds,
-                teacherFacts, roomFacts, timeslotFacts, unavailableFacts, skillFacts, lessons, null);
+                teacherFacts, roomFacts, timeslotFacts, unavailableFacts, skillFacts, schedulePatterns, lessons, null);
     }
 
     @Transactional

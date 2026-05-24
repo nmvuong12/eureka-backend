@@ -395,4 +395,33 @@ public class TeacherRepository {
                 .addValue("excludeTeacherId", excludeTeacherId);
         return jdbc.query(sql, params, teacherMapper);
     }
+
+    /**
+     * Đếm số giáo viên ACTIVE có kỹ năng phù hợp và không bận.
+     * Dùng để tính availableTeachers trong capacity dashboard Rolling Scheduling.
+     * @param excludeIds        danh sách teacher_id đang bận (có thể rỗng)
+     * @param requiredSkillCode mã kỹ năng yêu cầu (null = không lọc theo kỹ năng)
+     */
+    public int countAvailableTeachers(List<Long> excludeIds, String requiredSkillCode) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(DISTINCT t.id)
+                FROM teacher t
+                """);
+        var params = new MapSqlParameterSource();
+
+        // Join với teacher_skill nếu cần lọc theo kỹ năng
+        if (requiredSkillCode != null && !requiredSkillCode.isBlank()) {
+            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode ");
+            params.addValue("skillCode", requiredSkillCode);
+        }
+        sql.append(" WHERE t.working_status = 'ACTIVE' AND t.is_deleted = 0 ");
+
+        // Loại trừ các GV đang bận
+        if (excludeIds != null && !excludeIds.isEmpty()) {
+            sql.append(" AND t.id NOT IN (:excludeIds) ");
+            params.addValue("excludeIds", excludeIds);
+        }
+        Integer count = jdbc.queryForObject(sql.toString(), params, Integer.class);
+        return count != null ? count : 0;
+    }
 }

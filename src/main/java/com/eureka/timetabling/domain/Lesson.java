@@ -38,4 +38,9 @@ public class Lesson {
 
     // Có thể ghim (không thay đổi trong quá trình giải)
     private Boolean pinned;
+
+    // Problem facts bổ sung cho Rolling Scheduling
+    private Long schedulePatternId;
+    private Long classTeacherId;
 }
+

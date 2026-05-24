@@ -31,9 +31,11 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                 teacherSkillRequired(factory),
                 teacherUnavailable(factory),
                 roomCapacity(factory),
+                patternCompliance(factory),
                 // Soft
                 teacherGapMinimization(factory),
-                roomStability(factory)
+                roomStability(factory),
+                preferAssignedTeacher(factory)
         };
     }
 
@@ -133,5 +135,62 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                         && !l1.getRoomId().equals(l2.getRoomId()))
                 .penalize(HardSoftScore.ONE_SOFT)
                 .asConstraint("Ổn định phòng học cho lớp");
+    }
+
+    /**
+     * Hard: Các ca học phải tuân thủ mẫu lịch học (Schedule Pattern) được gán cho lớp.
+     */
+    private Constraint patternCompliance(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .filter(lesson -> lesson.getTimeslotId() != null && lesson.getSchedulePatternId() != null)
+                .join(Timetable.TimeslotFact.class,
+                        Joiners.equal(Lesson::getTimeslotId, Timetable.TimeslotFact::getTimeslotId))
+                .join(com.eureka.timetabling.domain.SchedulePattern.class,
+                        Joiners.equal((lesson, timeslot) -> lesson.getSchedulePatternId(), com.eureka.timetabling.domain.SchedulePattern::getId))
+                .filter((lesson, timeslot, pattern) -> {
+                    String dayNum = getDayNum(timeslot.getDayOfWeek());
+                    String slotCode = getSlotCodeFromStartTime(timeslot.getStartTime());
+                    boolean dayOk = pattern.getStudyDays() != null && pattern.getStudyDays().contains(dayNum);
+                    boolean slotOk = pattern.getSlotCode() != null && pattern.getSlotCode().equals(slotCode);
+                    return !dayOk || !slotOk;
+                })
+                .penalize(HardSoftScore.ONE_HARD)
+                .asConstraint("Không tuân thủ mẫu lịch học");
+    }
+
+    /**
+     * Soft: Ưu tiên chọn giáo viên đã được phân công từ trước cho lớp.
+     */
+    private Constraint preferAssignedTeacher(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .filter(lesson -> lesson.getTeacherId() != null 
+                        && lesson.getClassTeacherId() != null 
+                        && !lesson.getTeacherId().equals(lesson.getClassTeacherId()))
+                .penalize(HardSoftScore.ONE_SOFT)
+                .asConstraint("Ưu tiên giáo viên đã phân công của lớp");
+    }
+
+    private static String getDayNum(String dayOfWeek) {
+        if (dayOfWeek == null) return "";
+        switch (dayOfWeek.toUpperCase()) {
+            case "MONDAY": return "2";
+            case "TUESDAY": return "3";
+            case "WEDNESDAY": return "4";
+            case "THURSDAY": return "5";
+            case "FRIDAY": return "6";
+            case "SATURDAY": return "7";
+            case "SUNDAY": return "1";
+            default: return "";
+        }
+    }
+
+    private static String getSlotCodeFromStartTime(String startTime) {
+        if (startTime == null) return "";
+        if (startTime.startsWith("07:") || startTime.startsWith("08:")) return "C1";
+        if (startTime.startsWith("09:") || startTime.startsWith("10:")) return "C2";
+        if (startTime.startsWith("13:") || startTime.startsWith("14:")) return "C3";
+        if (startTime.startsWith("15:") || startTime.startsWith("16:")) return "C4";
+        if (startTime.startsWith("18:") || startTime.startsWith("19:")) return "C5";
+        return "";
     }
 }

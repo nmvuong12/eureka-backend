@@ -1,5 +1,6 @@
 package com.eureka.timetabling.service.impl;
 
+import com.eureka.timetabling.domain.ClassStatus;
 import com.eureka.timetabling.domain.Lesson;
 import com.eureka.timetabling.domain.SchoolClass;
 import com.eureka.timetabling.dto.request.ClassRequest;
@@ -45,7 +46,7 @@ public class ClassService {
                 .name(request.getName())
                 .studentSize(request.getStudentSize())
                 .startDate(request.getStartDate())
-                .status("PENDING")
+                .status(ClassStatus.PENDING)
                 .build();
         Long classId = classRepository.saveClass(clazz);
 

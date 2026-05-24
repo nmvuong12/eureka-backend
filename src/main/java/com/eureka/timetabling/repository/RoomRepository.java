@@ -75,4 +75,27 @@ public class RoomRepository {
         return jdbc.query(sql, (rs, row) ->
                 new Timetable.RoomFact(rs.getLong("id"), rs.getInt("capacity"), rs.getString("status")));
     }
+
+    /**
+     * Đếm số phòng ACTIVE không nằm trong danh sách đã bị bận.
+     * Dùng để tính availableRooms trong capacity dashboard.
+     * @param excludeIds danh sách room_id đang bận (có thể rỗng)
+     */
+    public int countAvailableRooms(List<Long> excludeIds) {
+        if (excludeIds == null || excludeIds.isEmpty()) {
+            return countAllActive();
+        }
+        String sql = "SELECT COUNT(*) FROM room WHERE status = 'ACTIVE' AND is_deleted = 0 AND id NOT IN (:excludeIds)";
+        Integer count = jdbc.queryForObject(sql,
+                new MapSqlParameterSource("excludeIds", excludeIds), Integer.class);
+        return count != null ? count : 0;
+    }
+
+    /** Đếm tổng số phòng ACTIVE (dùng khi không có phòng nào bị bận) */
+    public int countAllActive() {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM room WHERE status = 'ACTIVE' AND is_deleted = 0",
+                new MapSqlParameterSource(), Integer.class);
+        return count != null ? count : 0;
+    }
 }

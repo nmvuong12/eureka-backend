@@ -3,6 +3,7 @@ package com.eureka.timetabling.domain;
 import ai.timefold.solver.core.api.domain.entity.PlanningEntity;
 import ai.timefold.solver.core.api.domain.lookup.PlanningId;
 import ai.timefold.solver.core.api.domain.variable.PlanningVariable;
+import ai.timefold.solver.core.api.domain.entity.PlanningPin;
 import lombok.*;
 
 /**
@@ -27,20 +28,22 @@ public class Lesson {
     private String requiredSkill;
 
     // Biến lập kế hoạch - sẽ được Timefold gán giá trị
-    @PlanningVariable
+    @PlanningVariable(valueRangeProviderRefs = "teacherRange")
     private Long teacherId;
 
-    @PlanningVariable
+    @PlanningVariable(valueRangeProviderRefs = "roomRange")
     private Long roomId;
 
-    @PlanningVariable
+    @PlanningVariable(valueRangeProviderRefs = "timeslotRange")
     private Long timeslotId;
 
     // Có thể ghim (không thay đổi trong quá trình giải)
+    @PlanningPin
     private Boolean pinned;
 
     // Problem facts bổ sung cho Rolling Scheduling
     private Long schedulePatternId;
     private Long classTeacherId;
+    private java.time.LocalDate sessionDate;
 }
 

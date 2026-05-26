@@ -24,6 +24,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+
 /**
  * Controller quản lý việc Lập kế hoạch mở lớp (Rolling Scheduling) & Lớp học.
  */
@@ -40,6 +43,7 @@ public class ClassPlanningController {
     private final ClassRepository classRepository;
     private final ClassPlanningLogRepository classPlanningLogRepository;
     private final SchedulePatternService schedulePatternService;
+    private final NamedParameterJdbcTemplate jdbc;
 
     // ==================== ROLLING SCHEDULING ENDPOINTS ====================
 
@@ -201,5 +205,92 @@ public class ClassPlanningController {
     @Operation(summary = "Danh sách buổi học của lớp (Legacy)")
     public ResponseEntity<ApiResponse<List<Lesson>>> getLessons(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(classService.getLessons(id)));
+    }
+
+    @GetMapping("/class-planning/dispatch")
+    @Operation(summary = "Lấy danh sách buổi điều phối lịch giảng dạy theo ngày cụ thể")
+    public ResponseEntity<ApiResponse<List<DispatchEntryResponse>>> getDailyDispatch(
+            @RequestParam String date) {
+        java.time.LocalDate localDate;
+        try {
+            localDate = java.time.LocalDate.parse(date.trim());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Định dạng ngày không hợp lệ. Vui lòng sử dụng YYYY-MM-DD."));
+        }
+
+        String sql = """
+                SELECT l.id AS lesson_id, l.class_id, c.name AS class_name, l.lesson_index, l.required_skill,
+                       la.teacher_id, t.full_name AS teacher_name,
+                       la.room_id, r.name AS room_name,
+                       la.timeslot_id, ts.day_of_week, ts.start_time, ts.end_time, ts.label AS timeslot_label,
+                       la.session_date,
+                       COALESCE(la.is_pinned, 0) AS pinned
+                FROM lesson l
+                INNER JOIN lesson_assignment la ON l.id = la.lesson_id
+                INNER JOIN class c ON l.class_id = c.id
+                LEFT JOIN teacher t ON la.teacher_id = t.id
+                LEFT JOIN room r ON la.room_id = r.id
+                LEFT JOIN timeslot ts ON la.timeslot_id = ts.id
+                WHERE la.session_date = :sessionDate AND c.is_deleted = 0 AND l.is_deleted = 0
+                ORDER BY ts.start_time, c.name, l.lesson_index
+                """;
+        var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("sessionDate", java.sql.Date.valueOf(localDate));
+        
+        List<DispatchEntryResponse> list = jdbc.query(sql, params, (rs, rowNum) -> {
+            java.sql.Date sqlDate = rs.getDate("session_date");
+            return DispatchEntryResponse.builder()
+                    .lessonId(rs.getLong("lesson_id"))
+                    .classId(rs.getLong("class_id"))
+                    .className(rs.getString("class_name"))
+                    .lessonIndex(rs.getInt("lesson_index"))
+                    .requiredSkill(rs.getString("required_skill"))
+                    .teacherId(rs.getObject("teacher_id") != null ? rs.getLong("teacher_id") : null)
+                    .teacherName(rs.getString("teacher_name"))
+                    .roomId(rs.getObject("room_id") != null ? rs.getLong("room_id") : null)
+                    .roomName(rs.getString("room_name"))
+                    .timeslotId(rs.getObject("timeslot_id") != null ? rs.getLong("timeslot_id") : null)
+                    .dayOfWeek(rs.getString("day_of_week"))
+                    .startTime(rs.getString("start_time") != null ? rs.getString("start_time").substring(0, 5) : null)
+                    .endTime(rs.getString("end_time") != null ? rs.getString("end_time").substring(0, 5) : null)
+                    .timeslotLabel(rs.getString("timeslot_label"))
+                    .sessionDate(sqlDate != null ? sqlDate.toLocalDate() : null)
+                    .pinned(rs.getInt("pinned") == 1)
+                    .build();
+        });
+
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
+    @PutMapping("/class-planning/dispatch/{lessonId}")
+    @Operation(summary = "Điều phối/Điều chỉnh lịch của một buổi học ngày cụ thể")
+    public ResponseEntity<ApiResponse<Void>> adjustDispatch(
+            @PathVariable Long lessonId,
+            @RequestBody DispatchAdjustmentRequest request) {
+        
+        // Cập nhật và tự động ghim (lock) buổi học này
+        String sql = """
+                UPDATE lesson_assignment
+                SET teacher_id = :teacherId,
+                    room_id = :roomId,
+                    timeslot_id = :timeslotId,
+                    session_date = :sessionDate,
+                    is_pinned = 1,
+                    updated_at = NOW()
+                WHERE lesson_id = :lessonId
+                """;
+        var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                .addValue("lessonId", lessonId)
+                .addValue("teacherId", request.getTeacherId())
+                .addValue("roomId", request.getRoomId())
+                .addValue("timeslotId", request.getTimeslotId())
+                .addValue("sessionDate", request.getSessionDate() != null ? java.sql.Date.valueOf(request.getSessionDate()) : null);
+
+        int updated = jdbc.update(sql, params);
+        if (updated == 0) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Không tìm thấy buổi phân công lịch với lessonId: " + lessonId));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Điều phối ca học thành công (đã tự động khóa lịch)", null));
     }
 }

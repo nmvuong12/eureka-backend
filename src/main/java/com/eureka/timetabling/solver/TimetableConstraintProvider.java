@@ -29,13 +29,16 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                 roomConflict(factory),
                 teacherConflict(factory),
                 teacherSkillRequired(factory),
+                teacherNoSkills(factory),
                 teacherUnavailable(factory),
                 roomCapacity(factory),
                 patternCompliance(factory),
                 // Soft
                 teacherGapMinimization(factory),
                 roomStability(factory),
-                preferAssignedTeacher(factory)
+                preferAssignedTeacher(factory),
+                teacherStability(factory),
+                preferExactSkillLevel(factory)
         };
     }
 
@@ -66,17 +69,32 @@ public class TimetableConstraintProvider implements ConstraintProvider {
     }
 
     /**
-     * Hard: Giáo viên phải có kỹ năng phù hợp với buổi học
+     * Hard: Giáo viên phải có kỹ năng phù hợp với buổi học (Hỗ trợ phân cấp trình độ)
      */
     private Constraint teacherSkillRequired(ConstraintFactory factory) {
         return factory.forEach(Lesson.class)
-                .filter(lesson -> lesson.getTeacherId() != null)
+                .filter(lesson -> lesson.getTeacherId() != null && lesson.getRequiredSkill() != null)
                 .join(Timetable.TeacherSkillFact.class,
                         Joiners.equal(Lesson::getTeacherId, Timetable.TeacherSkillFact::getTeacherId))
                 .groupBy((lesson, skill) -> lesson, ConstraintCollectors.toList((lesson, skill) -> skill.getSkillCode()))
-                .filter((lesson, skills) -> !skills.contains(lesson.getRequiredSkill()))
+                .filter((lesson, skills) -> {
+                    return skills.stream().noneMatch(skillCode ->
+                            SkillMetadataHolder.isCompatible(skillCode, lesson.getRequiredSkill()));
+                })
                 .penalize(HardSoftScore.ONE_HARD)
                 .asConstraint("Kỹ năng giáo viên không phù hợp");
+    }
+
+    /**
+     * Hard: Giáo viên được phân công phải có ít nhất một kỹ năng (Chặn giáo viên trắng kỹ năng)
+     */
+    private Constraint teacherNoSkills(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .filter(lesson -> lesson.getTeacherId() != null)
+                .ifNotExists(Timetable.TeacherSkillFact.class,
+                        Joiners.equal(Lesson::getTeacherId, Timetable.TeacherSkillFact::getTeacherId))
+                .penalize(HardSoftScore.ONE_HARD)
+                .asConstraint("Giáo viên không có bất kỳ kỹ năng nào");
     }
 
     /**
@@ -170,6 +188,35 @@ public class TimetableConstraintProvider implements ConstraintProvider {
                 .asConstraint("Ưu tiên giáo viên đã phân công của lớp");
     }
 
+    /**
+     * Soft: Ưu tiên gán cùng một giáo viên dạy tất cả các buổi học của một lớp trong tuần.
+     */
+    private Constraint teacherStability(ConstraintFactory factory) {
+        return factory.forEachUniquePair(Lesson.class,
+                        Joiners.equal(Lesson::getClassId))
+                .filter((l1, l2) -> l1.getTeacherId() != null
+                        && l2.getTeacherId() != null
+                        && !l1.getTeacherId().equals(l2.getTeacherId()))
+                .penalize(HardSoftScore.ofSoft(20)) // Phạt nặng nếu đổi giáo viên trong tuần cho cùng một lớp
+                .asConstraint("Ổn định giáo viên cho lớp");
+    }
+
+    /**
+     * Soft: Ưu tiên chọn giáo viên có trình độ kỹ năng vừa khít nhất với yêu cầu.
+     * Tránh lãng phí giáo viên trình độ cao cho các lớp trình độ thấp.
+     */
+    private Constraint preferExactSkillLevel(ConstraintFactory factory) {
+        return factory.forEach(Lesson.class)
+                .filter(lesson -> lesson.getTeacherId() != null && lesson.getRequiredSkill() != null)
+                .join(Timetable.TeacherSkillFact.class,
+                        Joiners.equal(Lesson::getTeacherId, Timetable.TeacherSkillFact::getTeacherId))
+                .groupBy((lesson, skill) -> lesson, ConstraintCollectors.toList((lesson, skill) -> skill.getSkillCode()))
+                .penalize(HardSoftScore.ONE_SOFT, (lesson, skills) -> {
+                    return SkillMetadataHolder.getMinRankDifference(skills, lesson.getRequiredSkill());
+                })
+                .asConstraint("Ưu tiên giáo viên trình độ vừa khít");
+    }
+
     private static String getDayNum(String dayOfWeek) {
         if (dayOfWeek == null) return "";
         switch (dayOfWeek.toUpperCase()) {
@@ -189,7 +236,7 @@ public class TimetableConstraintProvider implements ConstraintProvider {
         if (startTime.startsWith("07:") || startTime.startsWith("08:")) return "C1";
         if (startTime.startsWith("09:") || startTime.startsWith("10:")) return "C2";
         if (startTime.startsWith("13:") || startTime.startsWith("14:")) return "C3";
-        if (startTime.startsWith("15:") || startTime.startsWith("16:")) return "C4";
+        if (startTime.startsWith("15:") || startTime.startsWith("16:") || startTime.startsWith("17:")) return "C4";
         if (startTime.startsWith("18:") || startTime.startsWith("19:")) return "C5";
         return "";
     }

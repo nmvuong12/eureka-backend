@@ -84,6 +84,16 @@ public class ClassRepository {
         }
     }
 
+    /** Helper: lấy LocalDate từ ResultSet, trả null nếu column không tồn tại hoặc NULL */
+    private java.time.LocalDate tryGetLocalDate(java.sql.ResultSet rs, String col) {
+        try {
+            java.sql.Date d = rs.getDate(col);
+            return d != null ? d.toLocalDate() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private final RowMapper<Lesson> lessonMapper = (rs, row) -> Lesson.builder()
             .id(rs.getLong("id"))
             .classId(rs.getLong("class_id"))
@@ -95,6 +105,7 @@ public class ClassRepository {
             .pinned(rs.getBoolean("is_pinned"))
             .schedulePatternId(tryGetLong(rs, "schedule_pattern_id"))
             .classTeacherId(tryGetLong(rs, "class_teacher_id"))
+            .sessionDate(tryGetLocalDate(rs, "session_date"))
             .build();
 
     // ==================== LEGACY METHODS (giữ nguyên tương thích ngược) ====================
@@ -171,9 +182,13 @@ public class ClassRepository {
                        COALESCE(la.teacher_id, NULL) AS teacher_id,
                        COALESCE(la.room_id, NULL) AS room_id,
                        COALESCE(la.timeslot_id, NULL) AS timeslot_id,
-                       COALESCE(la.is_pinned, 0) AS is_pinned
+                       COALESCE(la.is_pinned, 0) AS is_pinned,
+                       la.session_date,
+                       c.schedule_pattern_id,
+                       c.teacher_id AS class_teacher_id
                 FROM lesson l
                 LEFT JOIN lesson_assignment la ON l.id = la.lesson_id
+                LEFT JOIN class c ON l.class_id = c.id
                 WHERE l.class_id = :classId AND l.is_deleted = 0
                 ORDER BY l.lesson_index
                 """;
@@ -182,19 +197,24 @@ public class ClassRepository {
 
     /**
      * Lấy tất cả buổi học cho Solver (chỉ lớp OPEN, STUDYING).
-     * Đã cập nhật status filter từ PENDING/ACTIVE sang OPEN/STUDYING.
+     * CHỈ LẤY CÁC BUỔI ĐẠI DIỆN TRONG TUẦN (lesson_index <= sessions_per_week)
      */
     public List<Lesson> findAllLessonsForSolver() {
         String sql = """
                 SELECT l.id, l.class_id, l.lesson_index, l.required_skill,
                        la.teacher_id, la.room_id, la.timeslot_id,
+                       la.session_date,
                        COALESCE(la.is_pinned, 0) AS is_pinned,
                        c.schedule_pattern_id,
                        c.teacher_id AS class_teacher_id
                 FROM lesson l
                 LEFT JOIN lesson_assignment la ON l.id = la.lesson_id
                 LEFT JOIN class c ON l.class_id = c.id
-                WHERE c.status IN ('OPEN', 'STUDYING') AND c.is_deleted = 0 AND l.is_deleted = 0
+                INNER JOIN schedule_pattern sp ON c.schedule_pattern_id = sp.id
+                WHERE c.status IN ('OPEN', 'STUDYING') 
+                  AND c.is_deleted = 0 
+                  AND l.is_deleted = 0
+                  AND l.lesson_index <= sp.sessions_per_week
                 """;
         return jdbc.query(sql, new MapSqlParameterSource(), lessonMapper);
     }
@@ -340,14 +360,14 @@ public class ClassRepository {
     }
 
     /**
-     * Đếm số lớp đang dùng một pattern (trạng thái OPEN hoặc STUDYING).
-     * Dùng để tính capacity còn lại.
+     * Đếm số lớp đang dùng một pattern (trạng thái khác CANCELLED và FINISHED).
+     * Dùng để tính capacity còn lại (áp dụng cơ chế giữ chỗ trước).
      */
     public int countByPatternAndActiveStatus(Long patternId) {
         String sql = """
                 SELECT COUNT(*) FROM class
                 WHERE schedule_pattern_id = :patternId
-                  AND status IN ('OPEN', 'STUDYING')
+                  AND status NOT IN ('CANCELLED', 'FINISHED')
                   AND is_deleted = 0
                 """;
         Integer count = jdbc.queryForObject(sql, new MapSqlParameterSource("patternId", patternId), Integer.class);
@@ -355,14 +375,14 @@ public class ClassRepository {
     }
 
     /**
-     * Lấy danh sách teacher_id đang bị bận trong pattern này (có lớp OPEN/STUDYING).
+     * Lấy danh sách teacher_id đang bị bận trong pattern này (trạng thái khác CANCELLED và FINISHED).
      * Dùng để tính số GV còn rảnh.
      */
     public List<Long> findAssignedTeacherIdsByPattern(Long patternId) {
         String sql = """
                 SELECT DISTINCT teacher_id FROM class
                 WHERE schedule_pattern_id = :patternId
-                  AND status IN ('OPEN', 'STUDYING')
+                  AND status NOT IN ('CANCELLED', 'FINISHED')
                   AND teacher_id IS NOT NULL
                   AND is_deleted = 0
                 """;
@@ -370,14 +390,14 @@ public class ClassRepository {
     }
 
     /**
-     * Lấy danh sách room_id đang bị bận trong pattern này (có lớp OPEN/STUDYING).
+     * Lấy danh sách room_id đang bị bận trong pattern này (trạng thái khác CANCELLED và FINISHED).
      * Dùng để tính số phòng còn rảnh.
      */
     public List<Long> findAssignedRoomIdsByPattern(Long patternId) {
         String sql = """
                 SELECT DISTINCT room_id FROM class
                 WHERE schedule_pattern_id = :patternId
-                  AND status IN ('OPEN', 'STUDYING')
+                  AND status NOT IN ('CANCELLED', 'FINISHED')
                   AND room_id IS NOT NULL
                   AND is_deleted = 0
                 """;

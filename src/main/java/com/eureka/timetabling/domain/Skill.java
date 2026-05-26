@@ -16,6 +16,8 @@ public class Skill {
     private String skillCode;
     private String skillName;
     private String description;
+    private String skillGroup;
+    private Integer levelRank;
     private Integer isDeleted;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

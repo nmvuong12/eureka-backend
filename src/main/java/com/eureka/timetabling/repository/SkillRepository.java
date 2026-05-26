@@ -22,6 +22,8 @@ public class SkillRepository {
             .skillCode(rs.getString("skill_code"))
             .skillName(rs.getString("skill_name"))
             .description(rs.getString("description"))
+            .skillGroup(rs.getString("skill_group"))
+            .levelRank(rs.getObject("level_rank") != null ? rs.getInt("level_rank") : null)
             .isDeleted(rs.getInt("is_deleted"))
             .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
             .updatedAt(rs.getTimestamp("updated_at") != null ? rs.getTimestamp("updated_at").toLocalDateTime() : null)
@@ -29,7 +31,7 @@ public class SkillRepository {
 
     public List<Skill> search(String query, int page, int size) {
         String sql = """
-                SELECT id, skill_code, skill_name, description, is_deleted, created_at, updated_at
+                SELECT id, skill_code, skill_name, description, skill_group, level_rank, is_deleted, created_at, updated_at
                 FROM skill
                 WHERE is_deleted = 0
                   AND (LOWER(skill_code) LIKE LOWER(:query) OR LOWER(skill_name) LIKE LOWER(:query))
@@ -73,13 +75,15 @@ public class SkillRepository {
 
     public Long save(Skill skill) {
         String sql = """
-                INSERT INTO skill (skill_code, skill_name, description)
-                VALUES (:skillCode, :skillName, :description)
+                INSERT INTO skill (skill_code, skill_name, description, skill_group, level_rank)
+                VALUES (:skillCode, :skillName, :description, :skillGroup, :levelRank)
                 """;
         var params = new MapSqlParameterSource()
                 .addValue("skillCode", skill.getSkillCode())
                 .addValue("skillName", skill.getSkillName())
-                .addValue("description", skill.getDescription());
+                .addValue("description", skill.getDescription())
+                .addValue("skillGroup", skill.getSkillGroup())
+                .addValue("levelRank", skill.getLevelRank());
         var kh = new GeneratedKeyHolder();
         jdbc.update(sql, params, kh);
         return kh.getKey().longValue();
@@ -88,14 +92,17 @@ public class SkillRepository {
     public int update(Skill skill) {
         String sql = """
                 UPDATE skill
-                SET skill_code = :skillCode, skill_name = :skillName, description = :description, updated_at = NOW()
+                SET skill_code = :skillCode, skill_name = :skillName, description = :description,
+                    skill_group = :skillGroup, level_rank = :levelRank, updated_at = NOW()
                 WHERE id = :id AND is_deleted = 0
                 """;
         var params = new MapSqlParameterSource()
                 .addValue("id", skill.getId())
                 .addValue("skillCode", skill.getSkillCode())
                 .addValue("skillName", skill.getSkillName())
-                .addValue("description", skill.getDescription());
+                .addValue("description", skill.getDescription())
+                .addValue("skillGroup", skill.getSkillGroup())
+                .addValue("levelRank", skill.getLevelRank());
         return jdbc.update(sql, params);
     }
 

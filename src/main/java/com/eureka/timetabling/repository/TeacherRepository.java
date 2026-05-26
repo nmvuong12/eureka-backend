@@ -373,14 +373,40 @@ public class TeacherRepository {
 
     /**
      * Tìm giáo viên thay thế phù hợp (Có kỹ năng phù hợp, trống lịch dạy và không bận vào ca học cụ thể)
+     * Đã nâng cấp hỗ trợ đối chiếu kỹ năng phân cấp (Hierarchical Skill Matching).
      */
     public List<Teacher> findSuitableSubstitutes(String skillCode, Long timeslotId, Long excludeTeacherId) {
-        String sql = """
+        StringBuilder sql = new StringBuilder("""
                 SELECT DISTINCT t.id, t.teacher_code, t.teacher_type, t.full_name, t.date_of_birth,
                                 t.gender, t.address, t.email, t.phone, t.skills, t.certificate_file,
                                 t.profile_file, t.working_status, t.is_deleted, t.created_date, t.modified_date
                 FROM teacher t
-                INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode
+                """);
+        var params = new MapSqlParameterSource()
+                .addValue("timeslotId", timeslotId)
+                .addValue("excludeTeacherId", excludeTeacherId);
+
+        // Kiểm tra xem kỹ năng yêu cầu có thuộc nhóm phân cấp không
+        String checkSql = "SELECT skill_group, level_rank FROM skill WHERE skill_code = :skillCode AND is_deleted = 0";
+        List<java.util.Map<String, Object>> skillInfo = java.util.Collections.emptyList();
+        try {
+            skillInfo = jdbc.queryForList(checkSql, new MapSqlParameterSource("skillCode", skillCode));
+        } catch (Exception ignored) {}
+
+        if (!skillInfo.isEmpty() && skillInfo.get(0).get("skill_group") != null && skillInfo.get(0).get("level_rank") != null) {
+            String group = (String) skillInfo.get(0).get("skill_group");
+            int rank = ((Number) skillInfo.get(0).get("level_rank")).intValue();
+            
+            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id ")
+               .append(" INNER JOIN skill s ON ts.skill_code = s.skill_code AND s.skill_group = :skillGroup AND s.level_rank >= :levelRank ");
+            params.addValue("skillGroup", group);
+            params.addValue("levelRank", rank);
+        } else {
+            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode ");
+            params.addValue("skillCode", skillCode);
+        }
+
+        sql.append("""
                 LEFT JOIN teacher_unavailable tu ON t.id = tu.teacher_id AND tu.timeslot_id = :timeslotId
                 LEFT JOIN lesson_assignment la ON t.id = la.teacher_id AND la.timeslot_id = :timeslotId AND la.is_deleted = 0
                 WHERE t.working_status = 'ACTIVE' AND t.is_deleted = 0
@@ -388,17 +414,15 @@ public class TeacherRepository {
                   AND tu.id IS NULL
                   AND la.id IS NULL
                 ORDER BY t.full_name
-                """;
-        var params = new MapSqlParameterSource()
-                .addValue("skillCode", skillCode)
-                .addValue("timeslotId", timeslotId)
-                .addValue("excludeTeacherId", excludeTeacherId);
-        return jdbc.query(sql, params, teacherMapper);
+                """);
+
+        return jdbc.query(sql.toString(), params, teacherMapper);
     }
 
     /**
      * Đếm số giáo viên ACTIVE có kỹ năng phù hợp và không bận.
-     * Dùng để tính availableTeachers trong capacity dashboard Rolling Scheduling.
+     * Dùng để tính availableTeachers trong capacity dashboard.
+     * Đã nâng cấp hỗ trợ đối chiếu kỹ năng phân cấp (Hierarchical Skill Matching).
      * @param excludeIds        danh sách teacher_id đang bận (có thể rỗng)
      * @param requiredSkillCode mã kỹ năng yêu cầu (null = không lọc theo kỹ năng)
      */
@@ -411,8 +435,25 @@ public class TeacherRepository {
 
         // Join với teacher_skill nếu cần lọc theo kỹ năng
         if (requiredSkillCode != null && !requiredSkillCode.isBlank()) {
-            sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode ");
-            params.addValue("skillCode", requiredSkillCode);
+            // Kiểm tra xem kỹ năng yêu cầu có thuộc nhóm phân cấp không
+            String checkSql = "SELECT skill_group, level_rank FROM skill WHERE skill_code = :skillCode AND is_deleted = 0";
+            List<java.util.Map<String, Object>> skillInfo = java.util.Collections.emptyList();
+            try {
+                skillInfo = jdbc.queryForList(checkSql, new MapSqlParameterSource("skillCode", requiredSkillCode));
+            } catch (Exception ignored) {}
+
+            if (!skillInfo.isEmpty() && skillInfo.get(0).get("skill_group") != null && skillInfo.get(0).get("level_rank") != null) {
+                String group = (String) skillInfo.get(0).get("skill_group");
+                int rank = ((Number) skillInfo.get(0).get("level_rank")).intValue();
+                
+                sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id ")
+                   .append(" INNER JOIN skill s ON ts.skill_code = s.skill_code AND s.skill_group = :skillGroup AND s.level_rank >= :levelRank ");
+                params.addValue("skillGroup", group);
+                params.addValue("levelRank", rank);
+            } else {
+                sql.append(" INNER JOIN teacher_skill ts ON t.id = ts.teacher_id AND ts.skill_code = :skillCode ");
+                params.addValue("skillCode", requiredSkillCode);
+            }
         }
         sql.append(" WHERE t.working_status = 'ACTIVE' AND t.is_deleted = 0 ");
 

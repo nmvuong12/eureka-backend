@@ -31,15 +31,15 @@ public class Timetable {
 
     // Tập hợp giá trị cho các biến lập kế hoạch
     @ProblemFactCollectionProperty
-    @ValueRangeProvider
+    @ValueRangeProvider(id = "teacherRange")
     private List<Long> teacherIds;
 
     @ProblemFactCollectionProperty
-    @ValueRangeProvider
+    @ValueRangeProvider(id = "roomRange")
     private List<Long> roomIds;
 
     @ProblemFactCollectionProperty
-    @ValueRangeProvider
+    @ValueRangeProvider(id = "timeslotRange")
     private List<Long> timeslotIds;
 
     // Thông tin phụ trợ để kiểm tra ràng buộc

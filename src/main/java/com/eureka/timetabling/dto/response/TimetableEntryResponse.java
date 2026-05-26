@@ -24,4 +24,5 @@ public class TimetableEntryResponse {
     private String timeslotLabel;
 
     private Boolean pinned;
+    private java.time.LocalDate sessionDate;
 }

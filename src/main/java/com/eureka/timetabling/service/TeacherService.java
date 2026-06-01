@@ -72,26 +72,4 @@ public interface TeacherService {
      */
     void delete(Long id);
 
-    /**
-     * Đăng ký lịch rảnh giảng dạy khả dụng cho giáo viên bán thời gian (PART_TIME)
-     * Thực hiện kiểm tra ràng buộc loại giáo viên, giờ và xung đột trùng lịch (overlap).
-     *
-     * @param request DTO chứa thông tin đăng ký lịch rảnh
-     */
-    void registerAvailability(TeacherAvailabilityRequest request);
-
-    /**
-     * Lấy danh sách lịch rảnh đã đăng ký của giáo viên
-     *
-     * @param teacherId ID của giáo viên
-     * @return Danh sách TeacherAvailability
-     */
-    List<com.eureka.timetabling.domain.TeacherAvailability> getAvailabilities(Long teacherId);
-
-    /**
-     * Xóa một lịch rảnh cụ thể theo ID
-     *
-     * @param id ID của lịch rảnh cần xóa
-     */
-    void deleteAvailability(Long id);
 }

@@ -8,7 +8,6 @@ import com.eureka.timetabling.dto.response.PageResponse;
 import com.eureka.timetabling.exception.BusinessException;
 import com.eureka.timetabling.exception.ResourceNotFoundException;
 import com.eureka.timetabling.repository.TeacherRepository;
-import com.eureka.timetabling.repository.TeacherAvailabilityRepository;
 import com.eureka.timetabling.service.TeacherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +33,6 @@ import java.util.stream.Collectors;
 public class TeacherServiceImpl implements TeacherService {
 
     private final TeacherRepository teacherRepository;
-    private final TeacherAvailabilityRepository teacherAvailabilityRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -187,68 +185,7 @@ public class TeacherServiceImpl implements TeacherService {
         log.info("Đã thực hiện xóa mềm giáo viên ID: {}", id);
     }
 
-    @Override
-    @Transactional
-    public void registerAvailability(TeacherAvailabilityRequest request) {
-        log.info("Giáo viên ID {} đăng ký lịch rảnh vào {}", request.getTeacherId(), request.getDayOfWeek());
 
-        // 1. Tìm kiếm giáo viên
-        Teacher teacher = teacherRepository.findById(request.getTeacherId())
-                .orElseThrow(() -> new ResourceNotFoundException("Giáo viên", request.getTeacherId()));
-
-        // 2. Ràng buộc: Chỉ giáo viên bán thời gian (PART_TIME) mới được đăng ký lịch rảnh
-        if (teacher.getTeacherType() != TeacherType.PART_TIME) {
-            throw new BusinessException("Chỉ giáo viên bán thời gian (PART_TIME) mới được đăng ký lịch rảnh");
-        }
-
-        // 3. Phân tích và kiểm tra ràng buộc giờ bắt đầu < giờ kết thúc
-        LocalTime startTime = LocalTime.parse(request.getStartTime(), DateTimeFormatter.ofPattern("HH:mm"));
-        LocalTime endTime = LocalTime.parse(request.getEndTime(), DateTimeFormatter.ofPattern("HH:mm"));
-
-        if (!startTime.isBefore(endTime)) {
-            throw new BusinessException("Thời gian bắt đầu rảnh (startTime) phải nhỏ hơn thời gian kết thúc (endTime)");
-        }
-
-        // 4. Kiểm tra xung đột thời gian (overlapping timeslot)
-        boolean hasOverlap = teacherAvailabilityRepository.checkOverlap(
-                request.getTeacherId(), request.getDayOfWeek(), startTime, endTime);
-        
-        if (hasOverlap) {
-            throw new BusinessException("Lịch đăng ký bị trùng lặp thời gian với các đăng ký lịch rảnh khác trong cùng ngày của giáo viên này");
-        }
-
-        // 5. Lưu lịch rảnh vào DB
-        TeacherAvailability availability = TeacherAvailability.builder()
-                .teacherId(request.getTeacherId())
-                .dayOfWeek(request.getDayOfWeek())
-                .startTime(startTime)
-                .endTime(endTime)
-                .build();
-
-        teacherAvailabilityRepository.save(availability);
-        log.info("Đăng ký lịch rảnh thành công cho giáo viên ID {} [{} {}-{}]", 
-                request.getTeacherId(), request.getDayOfWeek(), startTime, endTime);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TeacherAvailability> getAvailabilities(Long teacherId) {
-        log.info("Lấy danh sách lịch rảnh của giáo viên ID: {}", teacherId);
-        // Kiểm tra giáo viên tồn tại
-        teacherRepository.findById(teacherId)
-                .orElseThrow(() -> new ResourceNotFoundException("Giáo viên", teacherId));
-        return teacherAvailabilityRepository.findByTeacherId(teacherId);
-    }
-
-    @Override
-    @Transactional
-    public void deleteAvailability(Long id) {
-        log.info("Xóa lịch rảnh ID: {}", id);
-        int deletedRows = teacherAvailabilityRepository.deleteById(id);
-        if (deletedRows == 0) {
-            throw new ResourceNotFoundException("Lịch rảnh", id);
-        }
-    }
 
     /**
      * Thuật toán sinh mã giáo viên tự động dạng GVxxxx

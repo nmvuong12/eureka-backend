@@ -1,7 +1,6 @@
 package com.eureka.timetabling.controller;
 
 import com.eureka.timetabling.dto.request.TeacherRequest;
-import com.eureka.timetabling.dto.request.TeacherAvailabilityRequest;
 import com.eureka.timetabling.dto.response.ApiResponse;
 import com.eureka.timetabling.dto.response.PageResponse;
 import com.eureka.timetabling.dto.response.TimetableEntryResponse;
@@ -120,44 +119,6 @@ public class TeacherController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         teacherService.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa giáo viên thành công", null));
-    }
-
-    /**
-     * API Đăng ký lịch rảnh cho giáo viên bán thời gian (PART_TIME)
-     * Quyền hạn: TEACHER
-     */
-    @PostMapping("/availability")
-    @PreAuthorize("hasRole('TEACHER')")
-    @Operation(summary = "Đăng ký lịch rảnh (Chỉ giáo viên bán thời gian)", 
-               description = "Chỉ giáo viên PART_TIME mới được đăng ký. Bắt buộc startTime < endTime và không bị trùng lặp khoảng thời gian rảnh đã có.")
-    public ResponseEntity<ApiResponse<Void>> registerAvailability(
-            @Valid @RequestBody TeacherAvailabilityRequest request) {
-        teacherService.registerAvailability(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Đăng ký lịch rảnh giảng dạy thành công", null));
-    }
-
-    /**
-     * API Lấy danh sách lịch rảnh đã đăng ký của giáo viên
-     * Quyền hạn: ADMIN, STAFF, TEACHER
-     */
-    @GetMapping("/{id}/availability")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
-    @Operation(summary = "Xem danh sách lịch rảnh của giáo viên")
-    public ResponseEntity<ApiResponse<List<com.eureka.timetabling.domain.TeacherAvailability>>> getAvailabilities(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(teacherService.getAvailabilities(id)));
-    }
-
-    /**
-     * API Xóa lịch rảnh giảng dạy của giáo viên
-     * Quyền hạn: ADMIN, STAFF, TEACHER
-     */
-    @DeleteMapping("/availability/{availabilityId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
-    @Operation(summary = "Xóa một ca lịch rảnh của giáo viên")
-    public ResponseEntity<ApiResponse<Void>> deleteAvailability(@PathVariable Long availabilityId) {
-        teacherService.deleteAvailability(availabilityId);
-        return ResponseEntity.ok(ApiResponse.success("Xóa ca lịch rảnh thành công", null));
     }
 
     /**

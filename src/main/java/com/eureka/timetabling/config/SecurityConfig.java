@@ -48,6 +48,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Teacher endpoints
                 .requestMatchers("/teachers/availability/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
+                .requestMatchers("/teachers/*/unavailable").hasAnyRole("ADMIN", "STAFF", "TEACHER")
                 .requestMatchers(HttpMethod.GET, "/teachers/**").hasAnyRole("ADMIN", "STAFF", "TEACHER")
                 .requestMatchers("/teachers/**").hasAnyRole("ADMIN", "STAFF")
                 // File endpoints

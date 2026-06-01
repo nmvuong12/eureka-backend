@@ -98,10 +98,31 @@ public class RoomTimeslotController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Tạo ca học thành công", timeslot));
     }
 
+    @PutMapping("/timeslots/{id}")
+    @Tag(name = "Ca học")
+    @Operation(summary = "Cập nhật ca học")
+    public ResponseEntity<ApiResponse<Timeslot>> updateTimeslot(
+            @PathVariable Long id,
+            @Valid @RequestBody TimeslotRequest request) {
+        Timeslot timeslot = timeslotRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Ca học", id));
+        timeslot.setDayOfWeek(request.getDayOfWeek());
+        timeslot.setStartTime(request.getStartTime());
+        timeslot.setEndTime(request.getEndTime());
+        timeslot.setLabel(request.getLabel());
+        timeslotRepository.update(timeslot);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật ca học thành công", timeslot));
+    }
+
     @DeleteMapping("/timeslots/{id}")
     @Tag(name = "Ca học")
     @Operation(summary = "Xóa ca học")
     public ResponseEntity<ApiResponse<Void>> deleteTimeslot(@PathVariable Long id) {
+        if (timeslotRepository.isReferencedByPatternOrClass(id)) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(
+                    "Không thể xóa ca học này do đã được liên kết với một Mẫu lịch học (Pattern) đang hoạt động hoặc lớp học thực tế."
+            ));
+        }
         timeslotRepository.deleteById(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa ca học thành công", null));
     }

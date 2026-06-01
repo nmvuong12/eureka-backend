@@ -62,7 +62,7 @@ public class CourseService {
                 .durationWeeks(request.getDurationWeeks())
                 .minStudents(request.getMinStudents())
                 .maxStudents(request.getMaxStudents())
-                .tuitionFee(request.getTuitionFee() != null ? request.getTuitionFee() : BigDecimal.ZERO)
+
                 .requiredSkillCode(request.getRequiredSkillCode())
                 .status(CourseStatus.ACTIVE)
                 .defaultDuration(request.getDefaultDuration() != null ? request.getDefaultDuration() : 120)
@@ -97,7 +97,7 @@ public class CourseService {
         course.setDurationWeeks(request.getDurationWeeks());
         course.setMinStudents(request.getMinStudents());
         course.setMaxStudents(request.getMaxStudents());
-        course.setTuitionFee(request.getTuitionFee() != null ? request.getTuitionFee() : BigDecimal.ZERO);
+
         course.setRequiredSkillCode(request.getRequiredSkillCode());
         if (request.getDefaultDuration() != null) {
             course.setDefaultDuration(request.getDefaultDuration());

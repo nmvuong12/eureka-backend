@@ -24,8 +24,7 @@ public class Course {
     private Integer minStudents;
     /** Sĩ số tối đa mỗi lớp */
     private Integer maxStudents;
-    /** Học phí */
-    private BigDecimal tuitionFee;
+
     /** Mã kỹ năng giáo viên cần có (VD: IELTS) */
     private String requiredSkillCode;
     /** Trạng thái áp dụng */

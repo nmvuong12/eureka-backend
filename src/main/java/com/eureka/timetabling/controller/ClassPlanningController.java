@@ -23,6 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -208,17 +210,52 @@ public class ClassPlanningController {
     }
 
     @GetMapping("/class-planning/dispatch")
-    @Operation(summary = "Lấy danh sách buổi điều phối lịch giảng dạy theo ngày cụ thể")
+    @Operation(summary = "Lấy danh sách buổi điều phối lịch giảng dạy theo bộ lọc nâng cao")
     public ResponseEntity<ApiResponse<List<DispatchEntryResponse>>> getDailyDispatch(
-            @RequestParam String date) {
-        java.time.LocalDate localDate;
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Long batchId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long teacherId) {
+        
+        java.time.LocalDate start = null;
+        java.time.LocalDate end = null;
+
         try {
-            localDate = java.time.LocalDate.parse(date.trim());
+            if (startDate != null && !startDate.isBlank()) {
+                start = java.time.LocalDate.parse(startDate.trim());
+            }
+            if (endDate != null && !endDate.isBlank()) {
+                end = java.time.LocalDate.parse(endDate.trim());
+            }
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Định dạng ngày không hợp lệ. Vui lòng sử dụng YYYY-MM-DD."));
+            return ResponseEntity.badRequest().body(ApiResponse.error("Định dạng ngày bắt đầu hoặc ngày kết thúc không hợp lệ. Vui lòng sử dụng YYYY-MM-DD."));
         }
 
-        String sql = """
+        if (start == null && end == null) {
+            if (date != null && !date.isBlank()) {
+                try {
+                    start = java.time.LocalDate.parse(date.trim());
+                    end = start;
+                } catch (Exception e) {
+                    return ResponseEntity.badRequest().body(ApiResponse.error("Định dạng ngày không hợp lệ. Vui lòng sử dụng YYYY-MM-DD."));
+                }
+            } else {
+                start = java.time.LocalDate.now();
+                end = start;
+            }
+        } else if (start == null) {
+            start = end;
+        } else if (end == null) {
+            end = start;
+        }
+
+        var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource();
+        params.addValue("startDate", java.sql.Date.valueOf(start));
+        params.addValue("endDate", java.sql.Date.valueOf(end));
+
+        StringBuilder sqlBuilder = new StringBuilder("""
                 SELECT l.id AS lesson_id, l.class_id, c.name AS class_name, l.lesson_index, l.required_skill,
                        la.teacher_id, t.full_name AS teacher_name,
                        la.room_id, r.name AS room_name,
@@ -231,12 +268,27 @@ public class ClassPlanningController {
                 LEFT JOIN teacher t ON la.teacher_id = t.id
                 LEFT JOIN room r ON la.room_id = r.id
                 LEFT JOIN timeslot ts ON la.timeslot_id = ts.id
-                WHERE la.session_date = :sessionDate AND c.is_deleted = 0 AND l.is_deleted = 0
-                ORDER BY ts.start_time, c.name, l.lesson_index
-                """;
-        var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("sessionDate", java.sql.Date.valueOf(localDate));
-        
-        List<DispatchEntryResponse> list = jdbc.query(sql, params, (rs, rowNum) -> {
+                WHERE la.session_date BETWEEN :startDate AND :endDate
+                  AND c.is_deleted = 0
+                  AND l.is_deleted = 0
+                """);
+
+        if (batchId != null) {
+            sqlBuilder.append(" AND c.batch_id = :batchId");
+            params.addValue("batchId", batchId);
+        }
+        if (classId != null) {
+            sqlBuilder.append(" AND c.id = :classId");
+            params.addValue("classId", classId);
+        }
+        if (teacherId != null) {
+            sqlBuilder.append(" AND la.teacher_id = :teacherId");
+            params.addValue("teacherId", teacherId);
+        }
+
+        sqlBuilder.append(" ORDER BY la.session_date, ts.start_time, c.name, l.lesson_index");
+
+        List<DispatchEntryResponse> list = jdbc.query(sqlBuilder.toString(), params, (rs, rowNum) -> {
             java.sql.Date sqlDate = rs.getDate("session_date");
             return DispatchEntryResponse.builder()
                     .lessonId(rs.getLong("lesson_id"))
@@ -292,5 +344,87 @@ public class ClassPlanningController {
         }
 
         return ResponseEntity.ok(ApiResponse.success("Điều phối ca học thành công (đã tự động khóa lịch)", null));
+    }
+
+    @PutMapping("/class-planning/dispatch/batch")
+    @Operation(summary = "Điều phối lịch giảng dạy hàng loạt cho nhiều buổi học")
+    public ResponseEntity<ApiResponse<Void>> adjustDispatchBatch(
+            @Valid @RequestBody BatchDispatchAdjustmentRequest request) {
+        
+        if (request.getLessonIds() == null || request.getLessonIds().isEmpty()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Danh sách ID buổi học không được trống"));
+        }
+        
+        boolean hasUpdates = (request.getTeacherId() != null || request.getRoomId() != null || 
+                              request.getTimeslotId() != null || request.getSessionDate() != null);
+        if (!hasUpdates) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không có thông tin nào được thay đổi trong yêu cầu điều phối"));
+        }
+
+        // Lấy thông tin start_time, end_time của sourceTimeslotId nếu có đổi ca
+        String startTime = null;
+        String endTime = null;
+        if (request.getTimeslotId() != null) {
+            String tsSql = "SELECT start_time, end_time FROM timeslot WHERE id = :sourceId";
+            List<java.util.Map<String, Object>> rows = jdbc.queryForList(tsSql, Map.of("sourceId", request.getTimeslotId()));
+            if (!rows.isEmpty()) {
+                startTime = rows.get(0).get("start_time").toString();
+                endTime = rows.get(0).get("end_time").toString();
+            }
+        }
+
+        int updatedCount = 0;
+        // Duyệt từng buổi học để cập nhật động theo đúng ngày và ca học
+        for (Long lessonId : request.getLessonIds()) {
+            // Lấy thông tin ngày học hiện tại của buổi học
+            String selectSql = "SELECT session_date FROM lesson_assignment WHERE lesson_id = :lessonId";
+            List<java.util.Map<String, Object>> current = jdbc.queryForList(selectSql, Map.of("lessonId", lessonId));
+            if (current.isEmpty()) continue;
+
+            java.sql.Date originalDate = (java.sql.Date) current.get(0).get("session_date");
+            java.time.LocalDate targetDate = (request.getSessionDate() != null) ? 
+                    request.getSessionDate() : 
+                    (originalDate != null ? originalDate.toLocalDate() : null);
+
+            StringBuilder sql = new StringBuilder("UPDATE lesson_assignment SET is_pinned = 1, updated_at = NOW()");
+            var params = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource();
+            params.addValue("lessonId", lessonId);
+
+            if (request.getTeacherId() != null) {
+                sql.append(", teacher_id = :teacherId");
+                params.addValue("teacherId", request.getTeacherId());
+            }
+            if (request.getRoomId() != null) {
+                sql.append(", room_id = :roomId");
+                params.addValue("roomId", request.getRoomId());
+            }
+            if (request.getSessionDate() != null) {
+                sql.append(", session_date = :sessionDate");
+                params.addValue("sessionDate", java.sql.Date.valueOf(request.getSessionDate()));
+            }
+
+            if (request.getTimeslotId() != null && targetDate != null && startTime != null && endTime != null) {
+                String dayOfWeek = targetDate.getDayOfWeek().toString();
+                // Tìm ca học khớp với thứ của ngày học đó
+                String findTsSql = "SELECT id FROM timeslot WHERE day_of_week = :dayOfWeek AND start_time = :startTime AND end_time = :endTime LIMIT 1";
+                List<java.util.Map<String, Object>> match = jdbc.queryForList(findTsSql, Map.of(
+                        "dayOfWeek", dayOfWeek,
+                        "startTime", startTime,
+                        "endTime", endTime
+                ));
+                Long resolvedTsId = match.isEmpty() ? request.getTimeslotId() : ((Number) match.get(0).get("id")).longValue();
+                
+                sql.append(", timeslot_id = :timeslotId");
+                params.addValue("timeslotId", resolvedTsId);
+            } else if (request.getTimeslotId() != null) {
+                sql.append(", timeslot_id = :timeslotId");
+                params.addValue("timeslotId", request.getTimeslotId());
+            }
+
+            sql.append(" WHERE lesson_id = :lessonId");
+            updatedCount += jdbc.update(sql.toString(), params);
+        }
+        
+        return ResponseEntity.ok(ApiResponse.success("Điều phối hàng loạt ca học thành công (" + updatedCount + " buổi học đã được ghim khóa lịch)", null));
     }
 }

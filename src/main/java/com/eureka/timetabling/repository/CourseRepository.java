@@ -42,7 +42,6 @@ public class CourseRepository {
                 .durationWeeks(rs.getObject("duration_weeks") != null ? rs.getInt("duration_weeks") : null)
                 .minStudents(rs.getObject("min_students") != null ? rs.getInt("min_students") : null)
                 .maxStudents(rs.getObject("max_students") != null ? rs.getInt("max_students") : null)
-                .tuitionFee(rs.getBigDecimal("tuition_fee"))
                 .requiredSkillCode(rs.getString("required_skill_code"))
                 .status(status)
                 .defaultDuration(rs.getObject("default_duration") != null ? rs.getInt("default_duration") : null)
@@ -55,7 +54,7 @@ public class CourseRepository {
     public List<Course> findAll() {
         String sql = """
                 SELECT id, code, name, description, total_lessons, sessions_per_week, duration_weeks,
-                       min_students, max_students, tuition_fee, required_skill_code, status,
+                       min_students, max_students, required_skill_code, status,
                        default_duration, created_at, updated_at
                 FROM course
                 WHERE is_deleted = 0
@@ -68,7 +67,7 @@ public class CourseRepository {
     public Optional<Course> findById(Long id) {
         String sql = """
                 SELECT id, code, name, description, total_lessons, sessions_per_week, duration_weeks,
-                       min_students, max_students, tuition_fee, required_skill_code, status,
+                       min_students, max_students, required_skill_code, status,
                        default_duration, created_at, updated_at
                 FROM course WHERE id = :id AND is_deleted = 0
                 """;
@@ -80,7 +79,7 @@ public class CourseRepository {
     public Optional<Course> findByCode(String code) {
         String sql = """
                 SELECT id, code, name, description, total_lessons, sessions_per_week, duration_weeks,
-                       min_students, max_students, tuition_fee, required_skill_code, status,
+                       min_students, max_students, required_skill_code, status,
                        default_duration, created_at, updated_at
                 FROM course WHERE code = :code AND is_deleted = 0
                 """;
@@ -98,7 +97,7 @@ public class CourseRepository {
     public List<Course> searchPaged(String query, String status, int page, int size) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, code, name, description, total_lessons, sessions_per_week, duration_weeks,
-                       min_students, max_students, tuition_fee, required_skill_code, status,
+                       min_students, max_students, required_skill_code, status,
                        default_duration, created_at, updated_at
                 FROM course WHERE is_deleted = 0
                 """);
@@ -135,9 +134,9 @@ public class CourseRepository {
     public Long save(Course course) {
         String sql = """
                 INSERT INTO course (code, name, description, total_lessons, sessions_per_week,
-                                    duration_weeks, min_students, max_students, tuition_fee,
+                                    duration_weeks, min_students, max_students,
                                     required_skill_code, status, default_duration)
-                VALUES (:code, :name, :desc, :total, :spw, :dw, :minS, :maxS, :fee, :skill, :status, :duration)
+                VALUES (:code, :name, :desc, :total, :spw, :dw, :minS, :maxS, :skill, :status, :duration)
                 """;
         var params = buildSaveParams(course);
         var kh = new GeneratedKeyHolder();
@@ -150,7 +149,7 @@ public class CourseRepository {
         String sql = """
                 UPDATE course SET code=:code, name=:name, description=:desc, total_lessons=:total,
                     sessions_per_week=:spw, duration_weeks=:dw, min_students=:minS, max_students=:maxS,
-                    tuition_fee=:fee, required_skill_code=:skill, status=:status,
+                    required_skill_code=:skill, status=:status,
                     default_duration=:duration, updated_at=NOW()
                 WHERE id=:id AND is_deleted=0
                 """;
@@ -183,7 +182,6 @@ public class CourseRepository {
                 .addValue("dw", c.getDurationWeeks())
                 .addValue("minS", c.getMinStudents())
                 .addValue("maxS", c.getMaxStudents())
-                .addValue("fee", c.getTuitionFee() != null ? c.getTuitionFee() : BigDecimal.ZERO)
                 .addValue("skill", c.getRequiredSkillCode())
                 .addValue("status", c.getStatus() != null ? c.getStatus().name() : "ACTIVE")
                 .addValue("duration", c.getDefaultDuration());

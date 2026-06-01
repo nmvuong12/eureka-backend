@@ -376,6 +376,13 @@ public class TeacherRepository {
      * Đã nâng cấp hỗ trợ đối chiếu kỹ năng phân cấp (Hierarchical Skill Matching).
      */
     public List<Teacher> findSuitableSubstitutes(String skillCode, Long timeslotId, Long excludeTeacherId) {
+        return findSuitableSubstitutes(skillCode, timeslotId, excludeTeacherId, null);
+    }
+
+    /**
+     * Tìm giáo viên thay thế phù hợp có hỗ trợ lọc theo ngày dương lịch cụ thể (sessionDate) và đơn xin nghỉ phép (leave_request).
+     */
+    public List<Teacher> findSuitableSubstitutes(String skillCode, Long timeslotId, Long excludeTeacherId, java.time.LocalDate sessionDate) {
         StringBuilder sql = new StringBuilder("""
                 SELECT DISTINCT t.id, t.teacher_code, t.teacher_type, t.full_name, t.date_of_birth,
                                 t.gender, t.address, t.email, t.phone, t.skills, t.certificate_file,
@@ -406,15 +413,34 @@ public class TeacherRepository {
             params.addValue("skillCode", skillCode);
         }
 
+        // Join kiểm tra lịch bận định kỳ (teacher_unavailable)
+        sql.append(" LEFT JOIN teacher_unavailable tu ON t.id = tu.teacher_id AND tu.timeslot_id = :timeslotId ");
+
+        // Join kiểm tra lịch bận thực tế (lesson_assignment) theo ngày dương lịch (nếu có)
+        if (sessionDate != null) {
+            sql.append(" LEFT JOIN lesson_assignment la ON t.id = la.teacher_id AND la.timeslot_id = :timeslotId AND la.session_date = :sessionDate AND la.is_deleted = 0 ");
+            params.addValue("sessionDate", java.sql.Date.valueOf(sessionDate));
+        } else {
+            sql.append(" LEFT JOIN lesson_assignment la ON t.id = la.teacher_id AND la.timeslot_id = :timeslotId AND la.is_deleted = 0 ");
+        }
+
+        // Join kiểm tra đơn xin nghỉ phép (leave_request) đã phê duyệt trong ngày đó (nếu có)
+        if (sessionDate != null) {
+            sql.append(" LEFT JOIN leave_request lr ON t.id = lr.teacher_id AND lr.status = 'APPROVED' AND :sessionDate BETWEEN lr.from_date AND lr.to_date AND lr.is_deleted = 0 ");
+        }
+
         sql.append("""
-                LEFT JOIN teacher_unavailable tu ON t.id = tu.teacher_id AND tu.timeslot_id = :timeslotId
-                LEFT JOIN lesson_assignment la ON t.id = la.teacher_id AND la.timeslot_id = :timeslotId AND la.is_deleted = 0
                 WHERE t.working_status = 'ACTIVE' AND t.is_deleted = 0
                   AND t.id != :excludeTeacherId
                   AND tu.id IS NULL
                   AND la.id IS NULL
-                ORDER BY t.full_name
                 """);
+
+        if (sessionDate != null) {
+            sql.append(" AND lr.id IS NULL ");
+        }
+
+        sql.append(" ORDER BY t.full_name ");
 
         return jdbc.query(sql.toString(), params, teacherMapper);
     }

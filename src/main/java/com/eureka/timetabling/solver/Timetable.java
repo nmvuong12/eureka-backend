@@ -61,6 +61,9 @@ public class Timetable {
     @ProblemFactCollectionProperty
     private List<com.eureka.timetabling.domain.SchedulePattern> schedulePatterns;
 
+    @ProblemFactCollectionProperty
+    private List<com.eureka.timetabling.domain.ConstraintConfig> constraintConfigs;
+
     // Thực thể lập kế hoạch - Timefold sẽ gán giá trị cho các biến
     @PlanningEntityCollectionProperty
     private List<Lesson> lessons;
@@ -75,6 +78,7 @@ public class Timetable {
     public static class TeacherFact {
         private Long teacherId;
         private String status;
+        private String teacherType;
     }
 
     @Data @NoArgsConstructor @AllArgsConstructor

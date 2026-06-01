@@ -33,6 +33,7 @@ public class TimetableService {
     private final TimeslotRepository timeslotRepository;
     private final SchedulePatternRepository schedulePatternRepository;
     private final SkillRepository skillRepository;
+    private final ConstraintConfigRepository constraintConfigRepository;
     private final NamedParameterJdbcTemplate jdbc;
 
     // Trạng thái giải - dùng cho API polling
@@ -79,19 +80,36 @@ public class TimetableService {
         com.eureka.timetabling.solver.SkillMetadataHolder.setSkills(skillMetaMap);
 
         List<Lesson> lessons = classRepository.findAllLessonsForSolver();
-        List<Long> teacherIds = teacherRepository.findAllActiveIds();
+        List<com.eureka.timetabling.domain.Teacher> activeTeachers = teacherRepository.findAll("ACTIVE");
+        List<Long> teacherIds = activeTeachers.stream().map(com.eureka.timetabling.domain.Teacher::getId).toList();
         List<Long> roomIds = roomRepository.findAllActiveIds();
         List<Long> timeslotIds = timeslotRepository.findAllIds();
-        List<Timetable.TeacherFact> teacherFacts = teacherIds.stream()
-                .map(id -> new Timetable.TeacherFact(id, "ACTIVE")).toList();
+        List<Timetable.TeacherFact> teacherFacts = activeTeachers.stream()
+                .map(t -> new Timetable.TeacherFact(t.getId(), "ACTIVE", t.getTeacherType().name())).toList();
         List<Timetable.RoomFact> roomFacts = roomRepository.findAllRoomFacts();
         List<Timetable.TimeslotFact> timeslotFacts = timeslotRepository.findAllTimeslotFacts();
         List<Timetable.TeacherUnavailableFact> unavailableFacts = timeslotRepository.findAllTeacherUnavailableFacts();
         List<Timetable.TeacherSkillFact> skillFacts = teacherRepository.findAllSkillFacts();
         List<com.eureka.timetabling.domain.SchedulePattern> schedulePatterns = schedulePatternRepository.findAllActive();
+        List<com.eureka.timetabling.domain.ConstraintConfig> constraintConfigs = constraintConfigRepository.findAll();
+
+        // Đồng bộ hóa cấu hình các ràng buộc mềm động và thông tin bổ trợ trong TimetableConstraintProvider
+        String timeslotSql = "SELECT id, day_of_week, start_time FROM timeslot";
+        List<com.eureka.timetabling.solver.TimetableConstraintProvider.TimeslotInfo> timeslotInfos = jdbc.getJdbcTemplate().query(
+                timeslotSql, 
+                (rs, rowNum) -> new com.eureka.timetabling.solver.TimetableConstraintProvider.TimeslotInfo(
+                        rs.getLong("id"), 
+                        rs.getString("day_of_week"), 
+                        rs.getString("start_time")
+                )
+        );
+        java.util.Map<Long, String> teacherTypeMap = activeTeachers.stream()
+                .collect(java.util.stream.Collectors.toMap(com.eureka.timetabling.domain.Teacher::getId, t -> t.getTeacherType().name()));
+        com.eureka.timetabling.solver.TimetableConstraintProvider.initSolverData(constraintConfigs, timeslotInfos, teacherTypeMap);
 
         return new Timetable("EurekaSchedule", teacherIds, roomIds, timeslotIds,
-                teacherFacts, roomFacts, timeslotFacts, unavailableFacts, skillFacts, schedulePatterns, lessons, null);
+                teacherFacts, roomFacts, timeslotFacts, unavailableFacts, skillFacts, schedulePatterns,
+                constraintConfigs, lessons, null);
     }
 
     @Transactional

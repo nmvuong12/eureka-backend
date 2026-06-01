@@ -22,7 +22,7 @@ public class CourseRequest {
     @NotNull @Min(1) private Integer minStudents;
     @NotNull @Min(1) private Integer maxStudents;
 
-    private BigDecimal tuitionFee;
+
     private String requiredSkillCode;
     /** Thời lượng mỗi buổi học (phút), mặc định 120 phút */
     private Integer defaultDuration;

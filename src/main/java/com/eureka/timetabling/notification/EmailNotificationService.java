@@ -91,6 +91,71 @@ public class EmailNotificationService {
         sendEmail(toEmail, subject, body);
     }
 
+    @Async
+    public void sendSubstituteOfferNotification(String toEmail, String teacherName, String classCode, int lessonIndex, String dateStr, String timeslotLabel, String claimUrl) {
+        String subject = "[Eureka] Lời mời nhận DẠY THAY (First-Come-First-Serve)";
+        String body = String.format("""
+                Kính gửi thầy/cô %s,
+                
+                Trung tâm tiếng Anh Eureka trân trọng mời thầy/cô đăng ký dạy thay cho ca học sau:
+                - Lớp: %s
+                - Buổi thứ: %d
+                - Ngày học: %s
+                - Ca học: %s
+                
+                Đây là lời mời dạy thay tự động theo cơ chế Nhận trước - Được trước (First-Come-First-Serve).
+                Vui lòng bấm vào link dưới đây để xem chi tiết và xác nhận nhận lớp:
+                %s
+                
+                *Lưu ý: Link này có giá trị trong vòng 24 tiếng hoặc cho đến khi có giáo viên khác nhận trước.
+                
+                Trân trọng,
+                Eureka English Center
+                """, teacherName, classCode, lessonIndex, dateStr, timeslotLabel, claimUrl);
+        sendEmail(toEmail, subject, body);
+    }
+
+    @Async
+    public void sendSubstituteClaimedToOriginalTeacher(String toEmail, String originalTeacherName, String substituteName, String classCode, String timeslotLabel, String dateStr) {
+        String subject = "[Eureka] Lớp học của bạn đã có giáo viên DẠY THAY";
+        String body = String.format("""
+                Kính gửi thầy/cô %s,
+                
+                Thông báo: Buổi dạy của thầy/cô đã được nhận dạy thay bởi giáo viên khác:
+                - Lớp học: %s
+                - Ngày học: %s
+                - Ca học: %s
+                - Giáo viên dạy thay: %s
+                
+                Đơn xin nghỉ phép liên quan đã được phê duyệt chính thức. Cảm ơn sự hợp tác của thầy/cô.
+                
+                Trân trọng,
+                Eureka English Center
+                """, originalTeacherName, classCode, dateStr, timeslotLabel, substituteName);
+        sendEmail(toEmail, subject, body);
+    }
+
+    @Async
+    public void sendSubstituteClaimedToAdmin(String adminEmail, String substituteName, String originalTeacherName, String classCode, String timeslotLabel, String dateStr) {
+        String subject = "[Eureka] Thông báo: Đã có giáo viên nhận DẠY THAY FCFS";
+        String body = String.format("""
+                Kính gửi Giáo vụ / Ban Quản trị,
+                
+                Hệ thống ghi nhận ca dạy thay FCFS đã được tiếp nhận thành công:
+                - Lớp học: %s
+                - Ngày học: %s
+                - Ca học: %s
+                - Giáo viên nghỉ phép: %s
+                - Giáo viên nhận dạy thay: %s
+                
+                Lịch giảng dạy tương ứng đã được tự động cập nhật ghim cứng (is_pinned = 1) và đơn xin nghỉ đã được phê duyệt.
+                
+                Trân trọng,
+                Hệ thống Eureka Timetabling
+                """, classCode, dateStr, timeslotLabel, originalTeacherName, substituteName);
+        sendEmail(adminEmail, subject, body);
+    }
+
     private void sendEmail(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();

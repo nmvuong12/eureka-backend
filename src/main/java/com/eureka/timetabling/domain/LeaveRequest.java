@@ -13,8 +13,14 @@ public class LeaveRequest {
     private LocalDate toDate;
     private String reason;
     private String status; // PENDING, APPROVED, REJECTED
+    private String sessionType; // MORNING, AFTERNOON, ALL_DAY
+    private String makeupOption; // MAKEUP, NO_MAKEUP
+    private LocalDate makeupDate;
+    private Long makeupTimeslotId;
+    private String dayConfigs; // JSON list of per-day configs (date, sessionType)
     private Long reviewedBy;
     private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
+

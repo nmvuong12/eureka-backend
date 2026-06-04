@@ -106,6 +106,11 @@ public class ClassRepository {
             .schedulePatternId(tryGetLong(rs, "schedule_pattern_id"))
             .classTeacherId(tryGetLong(rs, "class_teacher_id"))
             .sessionDate(tryGetLocalDate(rs, "session_date"))
+            .originalSessionDate(tryGetLocalDate(rs, "original_session_date"))
+            .originalTimeslotId(tryGetLong(rs, "original_timeslot_id"))
+            .originalRoomId(tryGetLong(rs, "original_room_id"))
+            .rescheduleReason(tryGetString(rs, "reschedule_reason"))
+            .leaveRequestId(tryGetLong(rs, "leave_request_id"))
             .build();
 
     // ==================== LEGACY METHODS (giữ nguyên tương thích ngược) ====================
@@ -184,6 +189,11 @@ public class ClassRepository {
                        COALESCE(la.timeslot_id, NULL) AS timeslot_id,
                        COALESCE(la.is_pinned, 0) AS is_pinned,
                        la.session_date,
+                       la.original_session_date,
+                       la.original_timeslot_id,
+                       la.original_room_id,
+                       la.reschedule_reason,
+                       la.leave_request_id,
                        c.schedule_pattern_id,
                        c.teacher_id AS class_teacher_id
                 FROM lesson l
@@ -204,6 +214,11 @@ public class ClassRepository {
                 SELECT l.id, l.class_id, l.lesson_index, l.required_skill,
                        la.teacher_id, la.room_id, la.timeslot_id,
                        la.session_date,
+                       la.original_session_date,
+                       la.original_timeslot_id,
+                       la.original_room_id,
+                       la.reschedule_reason,
+                       la.leave_request_id,
                        COALESCE(la.is_pinned, 0) AS is_pinned,
                        c.schedule_pattern_id,
                        c.teacher_id AS class_teacher_id
@@ -273,7 +288,15 @@ public class ClassRepository {
         String sql = """
                 SELECT l.id, l.class_id, l.lesson_index, l.required_skill,
                        la.teacher_id, la.room_id, la.timeslot_id,
-                       COALESCE(la.is_pinned, 0) AS is_pinned
+                       la.session_date,
+                       la.original_session_date,
+                       la.original_timeslot_id,
+                       la.original_room_id,
+                       la.reschedule_reason,
+                       la.leave_request_id,
+                       COALESCE(la.is_pinned, 0) AS is_pinned,
+                       c.schedule_pattern_id,
+                       c.teacher_id AS class_teacher_id
                 FROM lesson l
                 INNER JOIN lesson_assignment la ON l.id = la.lesson_id AND la.teacher_id = :teacherId
                 LEFT JOIN class c ON l.class_id = c.id
@@ -487,5 +510,56 @@ public class ClassRepository {
                 new MapSqlParameterSource("batchId", batchId).addValue("prefix", codePrefix + "%"),
                 Integer.class);
         return count != null ? count : 0;
+    }
+
+    /**
+     * Sao lưu lịch học gốc và chuyển đổi lịch dạy bù cho buổi học (Reschedule)
+     */
+    public int backupAndReschedule(Long lessonId, java.time.LocalDate newDate, Long newTimeslotId, Long newRoomId, String reason, Long leaveRequestId) {
+        String sql = """
+                UPDATE lesson_assignment
+                SET 
+                  original_session_date = COALESCE(original_session_date, session_date),
+                  original_timeslot_id = COALESCE(original_timeslot_id, timeslot_id),
+                  original_room_id = COALESCE(original_room_id, room_id),
+                  session_date = :newDate,
+                  timeslot_id = :newTimeslotId,
+                  room_id = :newRoomId,
+                  reschedule_reason = :reason,
+                  leave_request_id = :leaveRequestId,
+                  is_pinned = 1,
+                  updated_at = NOW()
+                WHERE lesson_id = :lessonId
+                """;
+        return jdbc.update(sql, new MapSqlParameterSource()
+                .addValue("lessonId", lessonId)
+                .addValue("newDate", newDate)
+                .addValue("newTimeslotId", newTimeslotId)
+                .addValue("newRoomId", newRoomId)
+                .addValue("reason", reason)
+                .addValue("leaveRequestId", leaveRequestId));
+    }
+
+    /**
+     * Sao lưu lịch học gốc và xoá giáo viên phụ trách để chuẩn bị tìm người dạy thay
+     */
+    public int backupAndRemoveTeacher(Long lessonId, String reason, Long leaveRequestId) {
+        String sql = """
+                UPDATE lesson_assignment
+                SET 
+                  original_session_date = COALESCE(original_session_date, session_date),
+                  original_timeslot_id = COALESCE(original_timeslot_id, timeslot_id),
+                  original_room_id = COALESCE(original_room_id, room_id),
+                  teacher_id = NULL,
+                  reschedule_reason = :reason,
+                  leave_request_id = :leaveRequestId,
+                  is_pinned = 1,
+                  updated_at = NOW()
+                WHERE lesson_id = :lessonId
+                """;
+        return jdbc.update(sql, new MapSqlParameterSource()
+                .addValue("lessonId", lessonId)
+                .addValue("reason", reason)
+                .addValue("leaveRequestId", leaveRequestId));
     }
 }

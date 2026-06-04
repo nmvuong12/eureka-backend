@@ -45,5 +45,22 @@ public class Lesson {
     private Long schedulePatternId;
     private Long classTeacherId;
     private java.time.LocalDate sessionDate;
+
+    // Backup fields for original schedule when rescheduled (dạy bù/dạy thay)
+    private java.time.LocalDate originalSessionDate;
+    private Long originalTimeslotId;
+    private Long originalRoomId;
+    private String rescheduleReason;
+    private Long leaveRequestId;
+
+    // Transient fields for UI and individual leave request choices
+    private String classCode;
+    private String makeupOption;
+    private java.time.LocalDate makeupDate;
+    private Long makeupTimeslotId;
+    private String teacherName;
+    private String feasibilityNote;
 }
+
+
 

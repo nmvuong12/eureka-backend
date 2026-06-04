@@ -248,22 +248,23 @@ public class TimetableService {
     public List<TimetableEntryResponse> getTimetable(Long teacherId, Long classId, Long roomId, Long batchId) {
         String sql = """
                 SELECT l.id AS lesson_id, l.class_id, c.name AS class_name, l.lesson_index, l.required_skill,
-                       la.teacher_id, t.full_name AS teacher_name,
-                       la.room_id, r.name AS room_name,
-                       la.timeslot_id, ts.day_of_week, ts.start_time, ts.end_time, ts.label AS timeslot_label,
+                       COALESCE(lr.teacher_id, la.teacher_id) AS teacher_id, t.full_name AS teacher_name,
+                       COALESCE(la.original_room_id, la.room_id) AS room_id, r.name AS room_name,
+                       COALESCE(la.original_timeslot_id, la.timeslot_id) AS timeslot_id, ts.day_of_week, ts.start_time, ts.end_time, ts.label AS timeslot_label,
                        COALESCE(la.is_pinned, 0) AS pinned
                 FROM lesson l
                 INNER JOIN lesson_assignment la ON l.id = la.lesson_id
                 INNER JOIN class c ON l.class_id = c.id
                 INNER JOIN schedule_pattern sp ON c.schedule_pattern_id = sp.id
-                LEFT JOIN teacher t ON la.teacher_id = t.id
-                LEFT JOIN room r ON la.room_id = r.id
-                LEFT JOIN timeslot ts ON la.timeslot_id = ts.id
+                LEFT JOIN leave_request lr ON la.leave_request_id = lr.id
+                LEFT JOIN teacher t ON COALESCE(lr.teacher_id, la.teacher_id) = t.id
+                LEFT JOIN room r ON COALESCE(la.original_room_id, la.room_id) = r.id
+                LEFT JOIN timeslot ts ON COALESCE(la.original_timeslot_id, la.timeslot_id) = ts.id
                 WHERE la.timeslot_id IS NOT NULL
                   AND l.lesson_index <= sp.sessions_per_week
-                  AND (:teacherId IS NULL OR la.teacher_id = :teacherId)
+                  AND (:teacherId IS NULL OR COALESCE(lr.teacher_id, la.teacher_id) = :teacherId)
                   AND (:classId IS NULL OR l.class_id = :classId)
-                  AND (:roomId IS NULL OR la.room_id = :roomId)
+                  AND (:roomId IS NULL OR COALESCE(la.original_room_id, la.room_id) = :roomId)
                   AND (:batchId IS NULL OR c.batch_id = :batchId)
                 ORDER BY FIELD(ts.day_of_week,'MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'),
                          ts.start_time, c.name, l.lesson_index

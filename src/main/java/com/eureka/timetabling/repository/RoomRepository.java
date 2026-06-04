@@ -98,4 +98,54 @@ public class RoomRepository {
                 new MapSqlParameterSource(), Integer.class);
         return count != null ? count : 0;
     }
+
+    /**
+     * Tìm danh sách phòng học trống vào các ca/ngày dạy bù và đủ sức chứa.
+     */
+    public List<Room> findAvailableRoomsForSlots(int maxStudents, List<java.util.Map<String, Object>> slots) {
+        if (slots == null || slots.isEmpty()) {
+            return jdbc.query("SELECT id, name, capacity, status, created_at, updated_at FROM room WHERE status = 'ACTIVE' AND is_deleted = 0 ORDER BY name",
+                    new MapSqlParameterSource(), roomMapper);
+        }
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT r.id, r.name, r.capacity, r.status, r.created_at, r.updated_at
+                FROM room r
+                WHERE r.status = 'ACTIVE' AND r.is_deleted = 0
+                  AND r.capacity >= :maxStudents
+                """);
+
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("maxStudents", maxStudents);
+
+        sql.append("""
+                  AND r.id NOT IN (
+                    SELECT la.room_id
+                    FROM lesson_assignment la
+                    INNER JOIN lesson le ON la.lesson_id = le.id
+                    INNER JOIN class c ON le.class_id = c.id
+                    WHERE la.room_id IS NOT NULL AND c.is_deleted = 0 AND le.is_deleted = 0
+                      AND (
+                """);
+
+        for (int i = 0; i < slots.size(); i++) {
+            if (i > 0) {
+                sql.append(" OR ");
+            }
+            java.util.Map<String, Object> slot = slots.get(i);
+            String dateParam = "date_" + i;
+            String tsParam = "ts_" + i;
+            params.addValue(dateParam, slot.get("date"))
+                  .addValue(tsParam, slot.get("timeslotId"));
+            sql.append("(la.session_date = :").append(dateParam).append(" AND la.timeslot_id = :").append(tsParam).append(")");
+        }
+
+        sql.append("""
+                      )
+                  )
+                ORDER BY r.capacity ASC, r.name ASC
+                """);
+
+        return jdbc.query(sql.toString(), params, roomMapper);
+    }
 }

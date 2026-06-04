@@ -25,6 +25,11 @@ public class LeaveRequestRepository {
             .toDate(rs.getDate("to_date") != null ? rs.getDate("to_date").toLocalDate() : null)
             .reason(rs.getString("reason"))
             .status(rs.getString("status"))
+            .sessionType(rs.getString("session_type"))
+            .makeupOption(rs.getString("makeup_option"))
+            .makeupDate(rs.getDate("makeup_date") != null ? rs.getDate("makeup_date").toLocalDate() : null)
+            .makeupTimeslotId(rs.getObject("makeup_timeslot_id") != null ? rs.getLong("makeup_timeslot_id") : null)
+            .dayConfigs(rs.getString("day_configs"))
             .reviewedBy(rs.getObject("reviewed_by") != null ? rs.getLong("reviewed_by") : null)
             .reviewedAt(rs.getTimestamp("reviewed_at") != null ? rs.getTimestamp("reviewed_at").toLocalDateTime() : null)
             .createdAt(rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").toLocalDateTime() : null)
@@ -33,8 +38,8 @@ public class LeaveRequestRepository {
 
     public List<LeaveRequest> findAll(String status) {
         String sql = """
-                SELECT id, teacher_id, from_date, to_date, reason, status,
-                       reviewed_by, reviewed_at, created_at, updated_at
+                SELECT id, teacher_id, from_date, to_date, reason, status, session_type, makeup_option, makeup_date, makeup_timeslot_id,
+                       day_configs, reviewed_by, reviewed_at, created_at, updated_at
                 FROM leave_request
                 WHERE is_deleted = 0 AND (:status IS NULL OR status = :status)
                 ORDER BY created_at DESC
@@ -44,8 +49,8 @@ public class LeaveRequestRepository {
 
     public List<LeaveRequest> findByTeacherId(Long teacherId) {
         String sql = """
-                SELECT id, teacher_id, from_date, to_date, reason, status,
-                       reviewed_by, reviewed_at, created_at, updated_at
+                SELECT id, teacher_id, from_date, to_date, reason, status, session_type, makeup_option, makeup_date, makeup_timeslot_id,
+                       day_configs, reviewed_by, reviewed_at, created_at, updated_at
                 FROM leave_request WHERE teacher_id = :teacherId AND is_deleted = 0 ORDER BY created_at DESC
                 """;
         return jdbc.query(sql, new MapSqlParameterSource("teacherId", teacherId), mapper);
@@ -53,8 +58,8 @@ public class LeaveRequestRepository {
 
     public Optional<LeaveRequest> findById(Long id) {
         var list = jdbc.query("""
-                SELECT id, teacher_id, from_date, to_date, reason, status,
-                       reviewed_by, reviewed_at, created_at, updated_at
+                SELECT id, teacher_id, from_date, to_date, reason, status, session_type, makeup_option, makeup_date, makeup_timeslot_id,
+                       day_configs, reviewed_by, reviewed_at, created_at, updated_at
                 FROM leave_request WHERE id = :id AND is_deleted = 0
                 """, new MapSqlParameterSource("id", id), mapper);
         return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
@@ -62,14 +67,20 @@ public class LeaveRequestRepository {
 
     public Long save(LeaveRequest lr) {
         String sql = """
-                INSERT INTO leave_request (teacher_id, from_date, to_date, reason, status)
-                VALUES (:teacherId, :fromDate, :toDate, :reason, 'PENDING')
+                INSERT INTO leave_request (teacher_id, from_date, to_date, reason, status, session_type, makeup_option, makeup_date, makeup_timeslot_id, day_configs)
+                VALUES (:teacherId, :fromDate, :toDate, :reason, 'PENDING', :sessionType, :makeupOption, :makeupDate, :makeupTimeslotId, :dayConfigs)
                 """;
         var params = new MapSqlParameterSource()
                 .addValue("teacherId", lr.getTeacherId())
                 .addValue("fromDate", lr.getFromDate())
                 .addValue("toDate", lr.getToDate())
-                .addValue("reason", lr.getReason());
+                .addValue("reason", lr.getReason())
+                .addValue("sessionType", lr.getSessionType())
+                .addValue("makeupOption", lr.getMakeupOption())
+                .addValue("makeupDate", lr.getMakeupDate())
+                .addValue("makeupTimeslotId", lr.getMakeupTimeslotId())
+                .addValue("dayConfigs", lr.getDayConfigs());
+
         var kh = new GeneratedKeyHolder();
         jdbc.update(sql, params, kh);
         return kh.getKey().longValue();

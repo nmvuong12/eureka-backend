@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   servlet:
     context-path: /api
 
@@ -8,9 +8,12 @@ spring:
     name: eureka-timetabling
 
   datasource:
-    url: jdbc:mysql://localhost:3306/eureka_timetabling?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
-    username: root
-    password: Nguyenvuong1210$
+#    url: jdbc:mysql://localhost:3306/eureka_timetabling?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+#    username: root
+#    password: Nguyenvuong1210$
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 20
@@ -38,6 +41,9 @@ spring:
 
   cache:
     type: simple
+  jpa:
+    hibernate:
+      ddl-auto: update
 
   jackson:
     time-zone: Asia/Ho_Chi_Minh

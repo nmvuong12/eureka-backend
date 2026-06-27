@@ -58,7 +58,7 @@ public class SubstituteController {
     /** Xác nhận nhận dạy thay (Độc lập phân quyền - nhận dạng qua Token bảo mật) */
     @PostMapping("/claim")
     @Transactional
-    @Operation(summary = "Xác nhận dạy thay FCFS (Giật lớp một chạm)")
+    @Operation(summary = "Xác nhận dạy thay ")
     public ResponseEntity<ApiResponse<Void>> claimSubstitute(@RequestParam String token) {
         // 1. Khóa bi quan dòng dữ liệu để chống Race Condition (hai người click cùng lúc)
         String lockSql = "SELECT id, leave_request_id, status, expires_at, lesson_id, teacher_id FROM substitute_offer WHERE token = :token FOR UPDATE";

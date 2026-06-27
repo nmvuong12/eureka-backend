@@ -22,5 +22,9 @@ public class LeaveRequest {
     private LocalDateTime reviewedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Transient fields
+    private String teacherName;
+    private String teacherCode;
 }
 

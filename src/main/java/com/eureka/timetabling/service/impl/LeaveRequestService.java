@@ -53,6 +53,11 @@ public class LeaveRequestService {
     }
 
     @Transactional(readOnly = true)
+    public List<LeaveRequest> search(Long teacherId, String teacherName, LocalDate fromDate, LocalDate toDate, String makeupOption, String status) {
+        return leaveRequestRepository.search(teacherId, teacherName, fromDate, toDate, makeupOption, status);
+    }
+
+    @Transactional(readOnly = true)
     public List<LeaveRequest> findByTeacherId(Long teacherId) {
         return leaveRequestRepository.findByTeacherId(teacherId);
     }
@@ -342,7 +347,7 @@ public class LeaveRequestService {
                     .classCode(rs.getString("class_code"))
                     .makeupOption(rs.getString("makeup_option") != null ? rs.getString("makeup_option") : (lr != null ? lr.getMakeupOption() : null))
                     .makeupDate(rs.getDate("makeup_date") != null ? rs.getDate("makeup_date").toLocalDate() : (lr != null ? lr.getMakeupDate() : null))
-                    .makeupTimeslotId(rs.getObject("makeup_timeslot_id") != null ? rs.getLong("makeup_timeslot_id") : (lr != null ? lr.getMakeupTimeslotId() : null))
+                    .makeupTimeslotId(rs.getObject("makeup_timeslot_id") != null ? Long.valueOf(rs.getLong("makeup_timeslot_id")) : (lr != null ? lr.getMakeupTimeslotId() : null))
                     .teacherName(rs.getString("teacher_name"))
                     .build();
 

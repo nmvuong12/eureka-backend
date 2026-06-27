@@ -46,16 +46,28 @@ public class LeaveRequestController {
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     @Operation(summary = "Danh sách đơn xin nghỉ (Admin/Staff)")
     public ResponseEntity<ApiResponse<List<LeaveRequest>>> getAll(
+            @RequestParam(required = false) Long teacherId,
+            @RequestParam(required = false) String teacherName,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(required = false) String makeupOption,
             @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.findAll(status)));
+        return ResponseEntity.ok(ApiResponse.success(
+                leaveRequestService.search(teacherId, teacherName, fromDate, toDate, makeupOption, status)));
     }
 
     @GetMapping("/my-requests")
     @PreAuthorize("hasRole('TEACHER')")
     @Operation(summary = "Đơn xin nghỉ của tôi", description = "Dành cho giáo viên xem lại lịch sử đơn xin nghỉ của mình")
-    public ResponseEntity<ApiResponse<List<LeaveRequest>>> getMyRequests(Authentication auth) {
+    public ResponseEntity<ApiResponse<List<LeaveRequest>>> getMyRequests(
+            Authentication auth,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(required = false) String makeupOption,
+            @RequestParam(required = false) String status) {
         var user = authService.getCurrentUser(auth.getName());
-        return ResponseEntity.ok(ApiResponse.success(leaveRequestService.findByTeacherId(user.teacherId())));
+        return ResponseEntity.ok(ApiResponse.success(
+                leaveRequestService.search(user.teacherId(), null, fromDate, toDate, makeupOption, status)));
     }
 
     @GetMapping("/preview-affected")

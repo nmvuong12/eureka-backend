@@ -93,7 +93,7 @@ public class EmailNotificationService {
 
     @Async
     public void sendSubstituteOfferNotification(String toEmail, String teacherName, String classCode, int lessonIndex, String dateStr, String timeslotLabel, String claimUrl) {
-        String subject = "[Eureka] Lời mời nhận DẠY THAY (First-Come-First-Serve)";
+        String subject = "[Eureka] Lời mời nhận DẠY THAY";
         String body = String.format("""
                 Kính gửi thầy/cô %s,
                 
@@ -103,7 +103,7 @@ public class EmailNotificationService {
                 - Ngày học: %s
                 - Ca học: %s
                 
-                Đây là lời mời dạy thay tự động theo cơ chế Nhận trước - Được trước (First-Come-First-Serve).
+                Đây là lời mời dạy thay tự động theo cơ chế Nhận trước - Được trước.
                 Vui lòng bấm vào link dưới đây để xem chi tiết và xác nhận nhận lớp:
                 %s
                 
@@ -137,7 +137,7 @@ public class EmailNotificationService {
 
     @Async
     public void sendSubstituteClaimedToAdmin(String adminEmail, String substituteName, String originalTeacherName, String classCode, String timeslotLabel, String dateStr) {
-        String subject = "[Eureka] Thông báo: Đã có giáo viên nhận DẠY THAY FCFS";
+        String subject = "[Eureka] Thông báo: Đã có giáo viên nhận DẠY THAY";
         String body = String.format("""
                 Kính gửi Giáo vụ / Ban Quản trị,
                 

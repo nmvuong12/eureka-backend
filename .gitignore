@@ -42,3 +42,6 @@ pom.xml.next
 release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
+
+# Local configuration files
+src/main/resources/application-local.yml
